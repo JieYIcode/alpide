@@ -26,6 +26,7 @@
 #include <Alpide/AlpideInterface.hpp>
 #include "../AlpideDataParser/AlpideDataParser.hpp"
 
+#include "TTree.h"
 
 #define NUM_ALPIDE_DATA_LINKS 28
 
@@ -33,6 +34,13 @@ const uint8_t TRIGGER_SENT = 0;
 const uint8_t TRIGGER_NOT_SENT_BUSY = 1;
 const uint8_t TRIGGER_FILTERED = 2;
 
+enum ReadoutUnitEventType {
+  TRIGGER_EVENT_BUSY,
+  TRIGGER_EVENT_BUSYV,
+  TRIGGER_EVENT_FATAL,
+  TRIGGER_EVENT_ABORT,
+  TRIGGER_EVENT_FLUSHED_INCOMPLETE
+};
 
 class ReadoutUnit : public sc_core::sc_module {
 public:
@@ -91,6 +99,7 @@ private:
   void triggerInputMethod(void);
   void busyChainMethod(void);
 //  void processInputData(void);
+  void writeTriggerEventTree(ReadoutUnitEventType type, TTree *tree) const;
 
 public:
   ReadoutUnit(sc_core::sc_module_name name,
@@ -116,7 +125,9 @@ public:
   unsigned int numDataLinks(void) const { return s_alpide_data_input.size(); }
   void addTraces(sc_trace_file *wf, std::string name_prefix) const;
   void writeSimulationStats(const std::string output_path) const;
-};
+  void writeSimulationStatsROOT(const std::string output_path) const;
+
+};  
 
 
 

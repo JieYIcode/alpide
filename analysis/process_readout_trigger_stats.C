@@ -107,6 +107,40 @@ int process_focal_readout_trigger_stats(const char* sim_run_data_path,
 
   unsigned int staves_per_quadrant = sim_settings->value("focal/staves_per_layer").toInt();
   Focal::FocalDetectorConfig det_config(staves_per_quadrant);
+  // Deactive all layers..
+  for(unsigned int i = 0; i < PCT::N_LAYERS; i++) {
+    det_config.layer[i].num_staves = 0;
+  }
+  // ..and then active the layers that are included in the configuration
+  std::string layer_config_str = sim_settings->value("pct/layers").toString().toStdString();
+  while(layer_config_str.length() > 0) {
+    // Expect a semicolon delimited string of layers, eg. "0;5;10"
+    std::string::size_type delim_pos = layer_config_str.find(";");
+    std::string layer_str = layer_config_str.substr(0, delim_pos);
+    unsigned int layer = std::stoi(layer_str);
+
+    if(delim_pos == std::string::npos)
+      layer_config_str.erase(0);
+    else
+      layer_config_str.erase(0, delim_pos+1);
+
+    std::cout << "Layer: " << layer << std::endl;
+
+    // Add layer to detector configuration
+    det_config.layer[layer].num_staves = sim_settings->value("pct/num_staves_per_layer").toUInt();
+  }
+  bool single_chip_mode = sim_settings->value("simulation/single_chip").toBool();
+  std::cout << "Single chip mode: " << (single_chip_mode ? "true" : "false") << std::endl;
+
+  bool event_csv_available = sim_settings->value("data_output/write_event_csv").toBool();
+  std::cout << "Event CSV file available: " << (event_csv_available ? "true" : "false") << std::endl;
+
+  gROOT->SetBatch(kTRUE);
+
+  std::shared_ptr<EventData> event_data;
+
+  unsigned long num_event_frames;
+
   return 0;
 }
 

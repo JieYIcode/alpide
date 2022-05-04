@@ -14,6 +14,12 @@
 #include <misc/vcd_trace.hpp>
 
 
+#ifdef ROOT_ENABLED
+#include "TFile.h"
+#include "TTree.h"
+#endif
+
+
 SC_HAS_PROCESS(ReadoutUnit);
 ///@brief Constructor for very simple ReadoutUnit model. The RU distributes triggers to chips
 ///       via control links, and parses data coming on the data links, and that's pretty much
@@ -948,4 +954,149 @@ void ReadoutUnit::writeSimulationStats(const std::string output_path) const
   trigger_summary_csv_file.close();
 
   ///@todo More ITS/RU stats here..
+
+  #ifdef ROOT_ENABLED
+    writeSimulationStatsROOT(output_path);
+  #endif
 }
+
+#ifdef ROOT_ENABLED
+
+///@brief Write simulation stats/data to ROOT file
+///@param[in] output_path Path to simulation output directory
+void ReadoutUnit::writeSimulationStatsROOT(const std::string output_path) const{
+
+  std::string rootfilename = output_path + std::string("_ru_events.root");
+  TFile *rootfile = new TFile(rootfilename.c_str(), "RECREATE");
+
+  if(!rootfile->IsOpen()) {
+    std::cerr << "Error opening events root file: " << rootfilename << std::endl;
+    return;
+  } else {
+    std::cout << "Writing busy, busy violation events to root file:\n\"";
+    std::cout << rootfilename << "\"" << std::endl;
+  }
+
+  // -----------------------------------------------------
+  // Write root data file with busy events
+  // -----------------------------------------------------
+  // BUSY Tree format:
+  //
+  //   uint64_t linkId
+  //   uint64_t busyontime
+  //   uint64_t busyofftime
+  //   uint64_t busyontrigger
+  //   uint64_t busyofftrigger
+
+  uint64_t busylink;
+  uint64_t busyontime;
+  uint64_t busyofftime;
+  uint64_t busyontrigger;
+  uint64_t busyofftrigger; 
+
+  // tree for busy events
+  TTree *busy_tree = new TTree("BUSY", "busy events");
+  busy_tree->Branch("linkId", &busylink);
+  busy_tree->Branch("busyOnTime",     &busyontime);
+  busy_tree->Branch("busyOffTime",    &busyofftime);
+  busy_tree->Branch("busyOnTriggerId",&busyontrigger);
+  busy_tree->Branch("busyOffTriggerId",&busyofftrigger);
+  // loop over links and fill tree with busy events
+  for(uint64_t link_id = 0; link_id < mDataLinkParsers.size(); link_id++) {
+    
+    std::vector<BusyEvent> busy_events = mDataLinkParsers[link_id]->getBusyEvents();  
+    busylink = link_id;
+
+    for(auto busy_event_it = busy_events.begin();
+        busy_event_it != busy_events.end();
+        busy_event_it++)
+    {
+      busyontime = busy_event_it->mBusyOnTime;
+      busyofftime = busy_event_it->mBusyOffTime;
+      busyontrigger = busy_event_it->mBusyOnTriggerId;
+      busyontrigger = busy_event_it->mBusyOnTriggerId;
+      busy_tree->Fill();
+    }
+  }
+  
+  TTree *busyv_tree = new TTree("BUSYV", "busy violations events");
+  TTree *abort_tree = new TTree("ABORT", "readout unit trigger abort events");
+  TTree *fatal_tree = new TTree("FATAL", "fatal trigger events");
+  TTree *flush_tree = new TTree("FLUSHED", "flushed incomplete trigger events");
+
+  writeTriggerEventTree(TRIGGER_EVENT_BUSYV, busyv_tree);
+  writeTriggerEventTree(TRIGGER_EVENT_ABORT, abort_tree);
+  writeTriggerEventTree(TRIGGER_EVENT_FLUSHED_INCOMPLETE, flush_tree);
+  writeTriggerEventTree(TRIGGER_EVENT_FATAL, fatal_tree);
+
+  rootfile->cd();
+  busy_tree->Write();
+  busyv_tree->Write();
+  fatal_tree->Write();
+  abort_tree->Write();
+  flush_tree->Write();
+  
+  rootfile->Close();
+  rootfile->Delete();
+
+
+}
+
+void ReadoutUnit::writeTriggerEventTree(ReadoutUnitEventType type, TTree *tree) const
+{
+  // -----------------------------------------------------
+  // Write root data file with trigger events
+  // -----------------------------------------------------
+  // Tree format:
+  //
+  //   uint64_t linkId
+  //   uint8_t chipId
+  //   uint64_t triggerId
+  uint64_t link;
+  uint8_t chipid;
+  uint64_t triggerid;
+  // set branches for fatal trigger events
+  tree->Branch("linkId",         &link);
+  tree->Branch("chipId", &chipid);
+  tree->Branch("triggerId", &triggerid);
+
+  // loop over links and fill tree with fatal trigger events
+  for(uint64_t link_id = 0; link_id < mDataLinkParsers.size(); link_id++) {
+    std::map<unsigned int, std::vector<uint64_t>> events;
+    switch(type){
+      case(TRIGGER_EVENT_BUSYV):
+        events = mDataLinkParsers[link_id]->getBusyViolationTriggers();
+        break;
+      case(TRIGGER_EVENT_ABORT):
+        events = mDataLinkParsers[link_id]->getReadoutAbortTriggers();
+        break;
+      case(TRIGGER_EVENT_FLUSHED_INCOMPLETE):
+        events = mDataLinkParsers[link_id]->getFlushedIncomplTriggers();
+        break;
+      case(TRIGGER_EVENT_FATAL):
+        events = mDataLinkParsers[link_id]->getFatalTriggers();
+        break;
+      default:
+        return;
+    } 
+    link = link_id;
+    // Loop over events per chip in this link
+    for(auto chip_it = events.begin();
+        chip_it != events.end();
+        chip_it++)
+    {
+      // Get chip id
+      chipid = chip_it->first;
+
+      for(auto event_it = chip_it->second.begin();
+          event_it != chip_it->second.end();
+          event_it++)
+      {
+        triggerid = *event_it;
+        tree->Fill();
+      }
+    }
+  }
+}
+
+#endif

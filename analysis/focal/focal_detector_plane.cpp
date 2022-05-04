@@ -2,8 +2,8 @@
 #include "../../src/Detector/Focal/Focal_constants.hpp"
 #include "../../src/Detector/Focal/FocalDetectorConfig.hpp"
 
-const double chip_size_x_mm = 30;
-const double chip_size_y_mm = 15;
+const double chip_size_x_mm = 1024*29.24/1000;
+const double chip_size_y_mm = 512*26.88/1000;
 
 
 ///@brief Create the polygons/bins for the chips in the Focal
@@ -16,6 +16,7 @@ void create_focal_chip_bins(TH2Poly* th2)
       for(unsigned int stave_num_in_half_patch = 0;
           stave_num_in_half_patch < Focal::STAVES_PER_HALF_PATCH;
           stave_num_in_half_patch++) {
+        
         unsigned int stave_num = half_patch_num*Focal::STAVES_PER_HALF_PATCH+stave_num_in_half_patch;
 
         double y_low = stave_num*chip_size_y_mm;

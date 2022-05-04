@@ -218,6 +218,9 @@ EventDigits* EventXMLITS::readEventFile(const QString& event_filename)
 
         event->addHit(col, row, global_chip_id);
       }
+
+      std::cout << "added " << digit_count << " hits to global chip id " << global_chip_id << std::endl;
+
     }
   }
 
