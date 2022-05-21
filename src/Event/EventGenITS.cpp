@@ -236,7 +236,7 @@ void EventGenITS::initMonteCarloHitGen(const QSettings* settings)
                                           true,
                                           mRandomSeed);
   }
-  else if(monte_carlo_file_type == "root" && mSimType == "focal") {
+  else if( ( (monte_carlo_file_type == "root") || (monte_carlo_file_type == "aliroot") ) && mSimType == "focal") {
 #ifdef ROOT_ENABLED
     unsigned int random_seed = mRandomSeed;
 
@@ -250,14 +250,17 @@ void EventGenITS::initMonteCarloHitGen(const QSettings* settings)
                                       &Focal::Focal_position_to_global_chip_id,
                                       monte_carlo_focal_data_file_str,
                                       mDetectorConfig.staves_per_quadrant,
-                                      random_seed);
+                                      random_seed,
+                                      monte_carlo_file_type == "aliroot" ? true : false);
+
 #else
     std::cerr << "Error: Simulation must be compiled with ROOT support for Focal simulation." << std::endl;
     exit(-1);
 #endif
+
   }
   else if(mSimType == "focal") {
-    std::cerr << "Error: Only monte carlo files in ROOT format supported for Focal simulation." << std::endl;
+    std::cerr << "Error: Only monte carlo files in ROOT or AliROOT format supported for Focal simulation." << std::endl;
     exit(-1);
   }
   else if(monte_carlo_file_type == "root" && mSimType == "its") {
@@ -812,15 +815,17 @@ void EventGenITS::generateMonteCarloEventData(uint64_t event_time_ns,
 
   const EventDigits* digits;
 
-  if(mSimType == "its")
+  if(mSimType == "its"){
     digits = mMCPhysicsEvents->getNextEvent();
-  else if(mSimType == "focal") {
+  }
+  else if(mSimType == "focal" && mMCType=="root") {
 #ifdef ROOT_ENABLED
     digits = mFocalEvents->getNextEvent();
 #else
     throw std::runtime_error("EventGenITS::generateMonteCarloEventData(): Compile with ROOT for focal sim.");
 #endif
-  } else
+  }
+  else
     throw std::runtime_error("EventGenITS::generateMonteCarloEventData(): Invalid sim type.");
 
   if(digits == nullptr)

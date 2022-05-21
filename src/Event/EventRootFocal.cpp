@@ -39,6 +39,7 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
                                Detector::t_global_chip_id_to_position_func global_chip_id_to_position_func,
                                Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
                                const QString& event_filename,
+                               bool aliroot,
                                unsigned int staves_per_quadrant,
                                unsigned int random_seed,
                                bool random_event_order)
@@ -47,7 +48,9 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
   , mPositionToGlobalChipIdFunc(position_to_global_chip_id_func)
   , mRandomEventOrder(random_event_order)
   , mStavesPerQuadrant(staves_per_quadrant)
+  , mAliROOT(aliroot)
 {
+
   if(random_seed == 0) {
     boost::random::random_device r;
 
@@ -75,32 +78,46 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
 
   mEvent = new MacroPixelEvent;
 
-  mTree = (TTree*)mRootFile->Get("pixTree");
+  if(mAliROOT){
 
-  mBranch_iEvent = mTree->GetBranch("iEvent");
-  mBranch_iFolder = mTree->GetBranch("iFolder");
-  mBranch_nPixS1 = mTree->GetBranch("nPixS1");
-  mBranch_nPixS3 = mTree->GetBranch("nPixS3");
+    std::cout << "Initializing EventRootFocal for aliroot file " << event_filename.toStdString() << std::endl; 
 
-  mBranchRowS1 = mTree->GetBranch("rowS1");
-  mBranchColS1 = mTree->GetBranch("colS1");
-  mBranchAmpS1 = mTree->GetBranch("ampS1");
-  mBranchRowS3 = mTree->GetBranch("rowS3");
-  mBranchColS3 = mTree->GetBranch("colS3");
-  mBranchAmpS3 = mTree->GetBranch("ampS3");
+    mAliFOCALCells = new TClonesArray("AliFOCALCell", C_MAX_HITS);
+    mNumEntries = mAliFOCALCells->GetEntriesFast(); 
 
-  mBranch_iEvent->SetAddress(&mEvent->iEvent);
-  mBranch_iFolder->SetAddress(&mEvent->iFolder);
-  mBranch_nPixS1->SetAddress(&mEvent->nPixS1);
-  mBranch_nPixS3->SetAddress(&mEvent->nPixS3);
-  mBranchRowS1->SetAddress(&mEvent->rowS1);
-  mBranchColS1->SetAddress(&mEvent->colS1);
-  mBranchAmpS1->SetAddress(&mEvent->ampS1);
-  mBranchRowS3->SetAddress(&mEvent->rowS3);
-  mBranchColS3->SetAddress(&mEvent->colS3);
-  mBranchAmpS3->SetAddress(&mEvent->ampS3);
+    
 
-  mNumEntries = mTree->GetEntries();
+  } else {
+
+    mTree = (TTree*)mRootFile->Get("pixTree");
+
+    mBranch_iEvent = mTree->GetBranch("iEvent");
+    mBranch_iFolder = mTree->GetBranch("iFolder");
+    mBranch_nPixS1 = mTree->GetBranch("nPixS1");
+    mBranch_nPixS3 = mTree->GetBranch("nPixS3");
+
+    mBranchRowS1 = mTree->GetBranch("rowS1");
+    mBranchColS1 = mTree->GetBranch("colS1");
+    mBranchAmpS1 = mTree->GetBranch("ampS1");
+    mBranchRowS3 = mTree->GetBranch("rowS3");
+    mBranchColS3 = mTree->GetBranch("colS3");
+    mBranchAmpS3 = mTree->GetBranch("ampS3");
+
+    mBranch_iEvent->SetAddress(&mEvent->iEvent);
+    mBranch_iFolder->SetAddress(&mEvent->iFolder);
+    mBranch_nPixS1->SetAddress(&mEvent->nPixS1);
+    mBranch_nPixS3->SetAddress(&mEvent->nPixS3);
+    mBranchRowS1->SetAddress(&mEvent->rowS1);
+    mBranchColS1->SetAddress(&mEvent->colS1);
+    mBranchAmpS1->SetAddress(&mEvent->ampS1);
+    mBranchRowS3->SetAddress(&mEvent->rowS3);
+    mBranchColS3->SetAddress(&mEvent->colS3);
+    mBranchAmpS3->SetAddress(&mEvent->ampS3);
+
+    mNumEntries = mTree->GetEntries();
+
+  }
+
 
   mRandEventIdDist = new uniform_int_distribution<int>(0, mNumEntries-1);
 
@@ -128,6 +145,49 @@ EventRootFocal::~EventRootFocal()
   delete mRandEventIdDist;
 }
 
+///@brief Create a number of pixel hits for ALPIDE chips, based on number of hits within a
+///       macro cell in the monte carlo simulation data.
+///@param[in] macro_cell_col Macro cell column number
+///@param[in] macro_cell_row Macro cell row number
+///@param[in] layer Layer of the macro cell hit (0 or 1)
+///@param[out] event Pointer to EventDigits object to add hits to
+void EventRootFocal::createHitsFromAliFOCALCellCM(double global_cm_x, double global_cm_y,
+                                unsigned int num_hits, unsigned int layer, EventDigits* event)
+{
+  unsigned int global_chip_id;
+  double chip_x_mm;
+  double chip_y_mm;
+
+  bool hit_valid = macro_cell_coords_to_chip_coords(global_cm_x, global_cm_y, layer,
+                                                    mStavesPerQuadrant, global_chip_id,
+                                                    chip_x_mm, chip_y_mm);
+
+  if(hit_valid) {
+    // Create specified number of random hits within macro cell
+    for(unsigned int hit_counter = 0; hit_counter < num_hits; hit_counter++) {
+      // Create a random hit within macro cell with uniform distribution
+      double rand_hit_x_mm = chip_x_mm + (*mRandHitMacroCellX)(mRandHitGen);
+      double rand_hit_y_mm = chip_y_mm + (*mRandHitMacroCellY)(mRandHitGen);
+
+      // Convert random coords in macro cell to coords in units of ALPIDE pixels
+      int chip_col = round(rand_hit_x_mm * ((double)N_PIXEL_COLS / (CHIP_WIDTH_CM*10)));
+      int chip_row = round(rand_hit_y_mm * ((double)N_PIXEL_ROWS / (CHIP_HEIGHT_CM*10)));
+
+      // Make sure that x and y coords are within chip boundaries
+      if(chip_col >= N_PIXEL_COLS)
+        chip_col = N_PIXEL_COLS-1;
+      else if(chip_col < 0)
+        chip_col = 0;
+
+      if(chip_row >= N_PIXEL_ROWS)
+        chip_row = N_PIXEL_ROWS-1;
+      else if(chip_row < 0)
+        chip_row = 0;
+
+      event->addHit(chip_col, chip_row, global_chip_id);
+    }
+  }
+}
 
 ///@brief Create a number of pixel hits for ALPIDE chips, based on number of hits within a
 ///       macro cell in the monte carlo simulation data.
@@ -173,42 +233,38 @@ void EventRootFocal::createHits(unsigned int macro_cell_col, unsigned int macro_
   }
 }
 
-
 ///@brief Read a monte carlo event from a binary data file
 ///@param event_num Event number
 ///@return Pointer to EventDigits object with the event that was read from file
-EventDigits* EventRootFocal::getNextEvent(void)
-{
+EventDigits* EventRootFocal::getNextAliROOTEvent(void){
+
+  std::cout << "Getting next aliroot event " << " from " << mRootFile->GetName() << std::endl;
+
   if(mEventDigits != nullptr)
     delete mEventDigits;
 
   mEventDigits = new EventDigits();
 
-  std::cout << "Getting next event..." << std::endl;
-
   if(mRandomEventOrder)
     mEntryCounter = (*mRandEventIdDist)(mRandEventIdGen);
 
-  mBranch_iEvent->GetEntry(mEntryCounter);
-  mBranch_iFolder->GetEntry(mEntryCounter);
-  mBranch_nPixS1->GetEntry(mEntryCounter);
-  mBranch_nPixS3->GetEntry(mEntryCounter);
 
-  mBranchRowS1->GetEntry(mEntryCounter);
-  mBranchColS1->GetEntry(mEntryCounter);
-  mBranchAmpS1->GetEntry(mEntryCounter);
-  mBranchRowS3->GetEntry(mEntryCounter);
-  mBranchColS3->GetEntry(mEntryCounter);
-  mBranchAmpS3->GetEntry(mEntryCounter);
+  mRootFile->cd(Form("Event%lu", mEntryCounter));
+  mTree = (TTree*) gDirectory->Get("fTreeR");
+  mTree->SetBranchAddress("AliFOCALCell", &mAliFOCALCells);
 
-  // S1: Layer 0 in simulation
-  for(int i = 0; i < mEvent->nPixS1; i++) {
-    createHits(mEvent->colS1[i], mEvent->rowS1[i], mEvent->ampS1[i], 0, mEventDigits);
+  unsigned int nHits = mAliFOCALCells->GetEntriesFast();
+  for(unsigned int i=0;i<nHits;i++){
+
+      AliFOCALCell *afc = (AliFOCALCell*) mAliFOCALCells->At(i);
+
+      createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 0, mEventDigits);
+      createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 1, mEventDigits);
+
+      std::cout << "Filled " << mEventDigits->size() << " digits from AliROOT files in both layers" << std::endl;
   }
-  // S3: Layer 1 in simulation
-  for(int i = 0; i < mEvent->nPixS3; i++) {
-    createHits(mEvent->colS3[i], mEvent->rowS3[i], mEvent->ampS3[i], 1, mEventDigits);
-  }
+
+  mRootFile->cd("../");
 
   if(mRandomEventOrder == false) {
     mEntryCounter++;
@@ -222,6 +278,74 @@ EventDigits* EventRootFocal::getNextEvent(void)
   std::cout << "Event size: " << mEventDigits->size() << std::endl;
 
   return mEventDigits;
+
+}
+
+///@brief Read a monte carlo event from a binary data file
+///@param event_num Event number
+///@return Pointer to EventDigits object with the event that was read from file
+EventDigits* EventRootFocal::getNextROOTEvent(void)
+{
+  if(mEventDigits != nullptr)
+    delete mEventDigits;
+
+  mEventDigits = new EventDigits();
+
+  std::cout << "Getting next event..." << std::endl;
+
+  if(mRandomEventOrder)
+    mEntryCounter = (*mRandEventIdDist)(mRandEventIdGen);
+
+
+  mBranch_iEvent->GetEntry(mEntryCounter);
+  mBranch_iFolder->GetEntry(mEntryCounter);
+  mBranch_nPixS1->GetEntry(mEntryCounter);
+  mBranch_nPixS3->GetEntry(mEntryCounter);
+
+  mBranchRowS1->GetEntry(mEntryCounter);
+  mBranchColS1->GetEntry(mEntryCounter);
+  mBranchAmpS1->GetEntry(mEntryCounter);
+  mBranchRowS3->GetEntry(mEntryCounter);
+  mBranchColS3->GetEntry(mEntryCounter);
+  mBranchAmpS3->GetEntry(mEntryCounter);
+
+
+  // S1: Layer 0 in simulation
+  for(int i = 0; i < mEvent->nPixS1; i++) {
+    createHits(mEvent->colS1[i], mEvent->rowS1[i], mEvent->ampS1[i], 0, mEventDigits);
+  }
+  std::cout << "Filled " << mEventDigits->size() << " digits in layer S1" << std::endl;
+
+  // S3: Layer 1 in simulation
+  for(int i = 0; i < mEvent->nPixS3; i++) {
+    createHits(mEvent->colS3[i], mEvent->rowS3[i], mEvent->ampS3[i], 1, mEventDigits);
+  }
+  std::cout << "Filled " << mEventDigits->size() << " digits in layer S3" << std::endl;
+
+
+  if(mRandomEventOrder == false) {
+    mEntryCounter++;
+
+    if(mEntryCounter == mNumEntries) {
+      mEntryCounter = 0;
+      //mMoreEventsLeft = false;
+    }
+  }
+
+  std::cout << "Event size: " << mEventDigits->size() << std::endl;
+
+  return mEventDigits;
+}
+
+
+///@brief Read a monte carlo event from a binary data file
+///@param event_num Event number
+///@return Pointer to EventDigits object with the event that was read from file
+EventDigits* EventRootFocal::getNextEvent(void){
+
+  if(mAliROOT) return getNextAliROOTEvent();
+  else return getNextROOTEvent();
+
 }
 
 ///@brief Calculate global chip id and chip row/column for macro cell hit coordinates
@@ -262,7 +386,7 @@ bool macro_cell_coords_to_chip_coords(const unsigned int macro_cell_x, const uns
   macro_cell_y_mm = abs(macro_cell_y_mm);
 
   // Skip hits that fall inside the gap (though the data set shouldn't really include hits there..)
-  if(abs(macro_cell_x_mm) < Focal::GAP_SIZE_X_MM/2 && abs(macro_cell_y_mm) < Focal::GAP_SIZE_Y_MM/2)
+  if( (abs(macro_cell_x_mm) < Focal::GAP_SIZE_X_MM/2) &&  (abs(macro_cell_y_mm) < Focal::GAP_SIZE_Y_MM/2) )
     return false;
 
   // Skip hit if its y-coord falls above or beyond detector plane
@@ -311,3 +435,98 @@ bool macro_cell_coords_to_chip_coords(const unsigned int macro_cell_x, const uns
 
   return true;
 }
+
+///@brief Calculate global chip id and chip row/column for global cm hit coordinates
+///       The coordinates of the cm position are centered at (0,0), i.e. beam pipe
+///@param[in] global_cm_x X coords of hit (in units of macro cells)
+///@param[in] global_cm_y Y coords of hit (in units of macro cells)
+///@param[in] layer Focal layer (0 or 1)
+///@param[in] staves_per_qudrant Number of staves per quadrant in simulation
+///@param[out] global_chip_id Global chip ID of the chip at those coordinates
+///@param[out] chip_x_mm X-coordinate of hit in chip
+///@param[out] chip_y_mm Y-coordinate of hit in chip
+///@return True when the macro cell is within the detector plane, and the output coordinates are
+///       valid.
+bool global_cm_coords_to_chip_coords(const double global_cm_x, const double global_cm_y,
+                                      const unsigned int layer, unsigned int staves_per_quadrant,
+                                      unsigned int& global_chip_id, double& chip_x_mm,
+                                      double& chip_y_mm)
+{
+  //int i_macro_cell_x = macro_cell_x - 1600;
+  //int i_macro_cell_y = macro_cell_y - 1600;
+
+  //double macro_cell_x_mm = i_macro_cell_x * Focal::MACRO_CELL_SIZE_X_MM;
+  //double macro_cell_y_mm = i_macro_cell_y * Focal::MACRO_CELL_SIZE_Y_MM;
+
+  double macro_cell_x_mm = global_cm_x*10;
+  double macro_cell_y_mm = global_cm_y*10;
+
+  unsigned int quadrant;
+
+  if(macro_cell_x_mm > 0 && macro_cell_y_mm > 0) {
+    quadrant = 0;
+  } else if(macro_cell_x_mm < 0 && macro_cell_y_mm > 0) {
+    quadrant = 1;
+  } else if(macro_cell_x_mm < 0 && macro_cell_y_mm < 0) {
+    quadrant = 2;
+  } else {
+    quadrant = 3;
+  }
+
+  macro_cell_x_mm = abs(macro_cell_x_mm);
+  macro_cell_y_mm = abs(macro_cell_y_mm);
+
+  // Skip hits that fall inside the gap (though the data set shouldn't really include hits there..)
+  if( (abs(macro_cell_x_mm) < Focal::GAP_SIZE_X_MM/2) &&  (abs(macro_cell_y_mm) < Focal::GAP_SIZE_Y_MM/2) )
+    return false;
+
+  // Skip hit if its y-coord falls above or beyond detector plane
+  if(macro_cell_y_mm > Focal::STAVES_PER_QUADRANT*Focal::STAVE_SIZE_Y_MM)
+    return false;
+
+  // If the hit is in one of the two patches to the right or left of the gap,
+  // then subtract the half gap size to "align" them with the rest of the patches,
+  // which simplifies the calculations..
+  if(macro_cell_y_mm < Focal::STAVES_PER_HALF_PATCH*Focal::STAVE_SIZE_Y_MM) {
+    macro_cell_x_mm -= Focal::GAP_SIZE_X_MM/2;
+
+    // Just in case the value ended up being a "slightly negative zero"
+    // in case of some floating point gremlins
+    if(macro_cell_x_mm < 0)
+      macro_cell_x_mm = 0.0;
+  }
+
+  // Skip hit if its x-coord falls outside the detector plane
+  if(macro_cell_x_mm > Focal::STAVE_SIZE_X_MM)
+    return false;
+
+  unsigned int stave_num_in_quadrant = macro_cell_y_mm / Focal::STAVE_SIZE_Y_MM;
+
+  // Skip stave if it is not included in the simulation
+  if(stave_num_in_quadrant >= staves_per_quadrant)
+    return false;
+
+  double stave_y_mm = macro_cell_y_mm - stave_num_in_quadrant*Focal::STAVE_SIZE_Y_MM;
+  double stave_x_mm = macro_cell_x_mm;
+
+  unsigned int chip_num_in_stave = stave_x_mm / (CHIP_WIDTH_CM*10);
+
+  chip_x_mm = stave_x_mm - chip_num_in_stave*(CHIP_WIDTH_CM*10);
+  chip_y_mm = stave_y_mm;
+
+  // Calculate global chip id
+  global_chip_id = 0;
+
+  if(layer > 0)
+    global_chip_id += Focal::CHIPS_PER_LAYER;
+
+  global_chip_id += quadrant * Focal::CHIPS_PER_QUADRANT;
+  global_chip_id += stave_num_in_quadrant * Focal::CHIPS_PER_STAVE;
+  global_chip_id += chip_num_in_stave;
+
+  return true;
+}
+
+
+void EventRootFocal::enableAliROOT(){mAliROOT = true;}
+void EventRootFocal::disableAliROOT(){mAliROOT = true;}

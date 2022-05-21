@@ -20,7 +20,7 @@ write_vcd_clock=false
 
 [event]
 average_event_rate_ns=2000
-monte_carlo_file_type=xml
+monte_carlo_file_type=aliroot
 qed_noise_event_rate_ns=10000
 qed_noise_feed_rate_ns=5000
 qed_noise_input=false
@@ -29,7 +29,7 @@ qed_noise_rate_ns=250
 random_cluster_generation=true
 random_cluster_size_mean=4
 random_cluster_size_stddev=1
-random_hit_generation=true
+random_hit_generation=false
 strobe_active_length_ns=9900
 strobe_inactive_length_ns=100
 trigger_delay_ns=930
@@ -37,7 +37,7 @@ trigger_filter_enable=true
 trigger_filter_time_ns=1230
 
 [focal]
-monte_carlo_file_path=/home/mxr/data/focal_sim/pixel_event_tree_pythia_MB.root
+monte_carlo_file_path=/home/mxr/data/focal_sim/test/test.root
 staves_per_quadrant=33
 
 [its]
@@ -76,9 +76,9 @@ random_particles_per_s_stddev=0.5E9
 time_frame_length_ns=10000
 
 [simulation]
-n_events=200
+n_events=10
 random_seed=1337
 single_chip=false
 system_continuous_mode=true
 system_continuous_period_ns=10000
-type=its
+type=focal
