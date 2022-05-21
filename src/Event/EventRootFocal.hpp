@@ -10,6 +10,7 @@
 
 #include <TFile.h>
 #include <TTree.h>
+#include <TClonesArray.h>
 #include <QString>
 #include <memory>
 #include <boost/random/mersenne_twister.hpp>
@@ -17,6 +18,7 @@
 #include <boost/random/uniform_real_distribution.hpp>
 #include "Detector/Common/DetectorConfig.hpp"
 #include "EventDigits.hpp"
+#include <QSettings>
 
 #define C_MAX_HITS 1000000
 
@@ -35,8 +37,22 @@ typedef struct {
   Int_t ampS3[C_MAX_HITS];
 } MacroPixelEvent;
 
+typedef struct {
+  Int_t iEvent;
+  Int_t iFolder;
+  
+  Int_t nPixS1;
+  Int_t yS1[C_MAX_HITS];
+  Int_t xS1[C_MAX_HITS];
+
+  Int_t nPixS3;
+  Int_t yS3[C_MAX_HITS];
+  Int_t xS3[C_MAX_HITS];
+} MetricPixelEvent;
+
 class EventRootFocal {
 private:
+
   Detector::DetectorConfigBase mConfig;
 
   Detector::t_global_chip_id_to_position_func mGlobalChipIdToPositionFunc;
@@ -57,6 +73,8 @@ private:
   TBranch *mBranchColS3;
   TBranch *mBranchAmpS3;
 
+  TClonesArray *mAliFOCALCells;
+
   MacroPixelEvent* mEvent;
 
   EventDigits* mEventDigits = nullptr;
@@ -69,6 +87,8 @@ private:
   /// Number of staves per quadrant included in the simulation
   const unsigned int mStavesPerQuadrant;
 
+  bool mAliROOT = 0; //indicates if the given ROOT file is an aliroot file from 2022 or later
+
   boost::random::mt19937 mRandHitGen;
   boost::random::uniform_real_distribution<double> *mRandHitMacroCellX, *mRandHitMacroCellY;
 
@@ -77,19 +97,31 @@ private:
 
   void createHits(unsigned int macro_cell_col, unsigned int macro_cell_row,
                   unsigned int num_hits, unsigned int layer, EventDigits* event);
+  void createHitsFromAliFOCALCellCM(double global_cm_x, double global_cm_y,
+                  unsigned int num_hits, unsigned int layer, EventDigits* event);
 
 public:
   EventRootFocal(Detector::DetectorConfigBase config,
                  Detector::t_global_chip_id_to_position_func global_chip_id_to_position_func,
                  Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
                  const QString& event_filename,
+                 bool aliroot,
                  unsigned int staves_per_quadrant,
                  unsigned int random_seed,
-                 bool random_event_order = true);
+                 bool random_event_order = true
+);
   ~EventRootFocal();
   /// Indicates if there are more events left, or if we reached the end
   bool getMoreEventsLeft() const {return mMoreEventsLeft;}
+  EventDigits* getNextROOTEvent(void);
+  EventDigits* getNextAliROOTEvent(void);
   EventDigits* getNextEvent(void);
+
+
+  void enableAliROOT();
+  void disableAliROOT();
+
+
 };
 
 

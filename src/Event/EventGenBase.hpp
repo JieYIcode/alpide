@@ -83,6 +83,7 @@ protected:
 
   std::string mOutputPath;
   std::string mSimType;
+  std::string mMCType;
 
   /// Readout stats objects for triggered data
   std::shared_ptr<PixelReadoutStats> mTriggeredReadoutStats = nullptr;

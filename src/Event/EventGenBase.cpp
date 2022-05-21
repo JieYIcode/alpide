@@ -15,6 +15,7 @@ EventGenBase::EventGenBase(sc_core::sc_module_name name,
 {
   mOutputPath = output_path;
   mSimType = settings->value("simulation/type").toString().toStdString();
+  mMCType = settings->value("event/monte_carlo_file_type").toString().toStdString();
   mCreateCSVFile = settings->value("data_output/write_event_csv").toBool();
   mRandomHitGeneration = settings->value("event/random_hit_generation").toBool();
   mRandomClusterGeneration = settings->value("event/random_cluster_generation").toBool();
