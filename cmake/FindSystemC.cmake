@@ -61,6 +61,9 @@ SET(_SYSTEMC_PATHS
   /usr/local/lib-macos
   /usr/local/systemc-2.3.3/include
   /usr/local/systemc-2.3.3/lib-linux64
+  /software/max/opt/systemc-2.3.3
+  /software/max/opt/systemc-2.3.3/include
+  /software/max/opt/systemc-2.3.3/lib
   )
 FIND_FILE(_SYSTEMC_VERSION_FILE
   NAMES sc_ver.h
