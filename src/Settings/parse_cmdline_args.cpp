@@ -98,6 +98,10 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
   const QCommandLineOption avgEventRateOption({"r", "rate"},
                                               "Average event rate (specified in nanoseconds).",
                                               "rate");
+  
+  const QCommandLineOption systemContPeriodOption({"p", "system_continuous_period_ns"},
+                                              "System continuous period (specified in nanoseconds).",
+                                              "system_continuous_period_ns");
 
   const QCommandLineOption triggerDelayOption({"td", "trig_delay"},
                                               "Trigger delay (specified in nanoseconds).",
@@ -125,6 +129,9 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
                                                  "Simulations are stored in directories named "
                                                  "\"run_<sequence num>\" in this directory",
                                                  "output_dir_prefix");
+  const QCommandLineOption mcFocalInputFileOption({"mc", "monte_carlo_file_path"},
+                                                 "Focal MC input filepath.",
+                                                 "monte_carlo_file_path");
 
   const QCommandLineOption helpOption = parser.addHelpOption();
   const QCommandLineOption versionOption = parser.addVersionOption();
@@ -146,6 +153,7 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
   parser.addOption(layer5HitDensityOption);
   parser.addOption(layer6HitDensityOption);
   parser.addOption(avgEventRateOption);
+  parser.addOption(systemContPeriodOption);
   parser.addOption(triggerDelayOption);
   parser.addOption(triggerFilterTimeOption);
   parser.addOption(triggerFilterOption);
@@ -153,6 +161,7 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
   parser.addOption(strobeInactiveLengthOption);
   parser.addOption(verboseOption);
   parser.addOption(outputDirPrefixOption);
+  parser.addOption(mcFocalInputFileOption);
 
 
   // Process the actual command line arguments given by the user
@@ -335,6 +344,17 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
         settings->setValue("event/average_event_rate_ns", parser.value(avgEventRateOption));
       }
     }
+    
+    if(parser.isSet(systemContPeriodOption)) {
+      parser.value(systemContPeriodOption).toULong(&conversion_ok, 10);
+
+      if(conversion_ok == false) {
+        std::cout << "Error parsing system continuous period option." << std::endl;
+        start_program = false;
+      } else {
+        settings->setValue("simulation/system_continuous_period_ns", parser.value(systemContPeriodOption));
+      }
+    }
 
     if(parser.isSet(triggerDelayOption)) {
       parser.value(triggerDelayOption).toULong(&conversion_ok, 10);
@@ -398,6 +418,15 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
       }
     } else {
       settings->setValue("output_dir_prefix", "sim_output");
+    }
+    
+    if(parser.isSet(mcFocalInputFileOption)) {
+      if(parser.value(mcFocalInputFileOption).length() == 0) {
+        std::cout << "Error parsing MC input file option" << std::endl;
+        start_program = false;
+      } else {
+        settings->setValue("focal/monte_carlo_file_path", parser.value(mcFocalInputFileOption));
+      }
     }
   }
 

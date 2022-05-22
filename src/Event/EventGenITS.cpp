@@ -6,7 +6,7 @@
  */
 
 
-
+#include <iostream>
 #include <stdexcept>
 #include <cmath>
 #include <map>
@@ -236,8 +236,8 @@ void EventGenITS::initMonteCarloHitGen(const QSettings* settings)
                                           true,
                                           mRandomSeed);
   }
+#ifdef ROOT_ENABLED || ALIROOT_ENABLED
   else if( ( (monte_carlo_file_type == "root") || (monte_carlo_file_type == "aliroot") ) && mSimType == "focal") {
-#ifdef ROOT_ENABLED
     unsigned int random_seed = mRandomSeed;
 
     if(random_seed == 0) {
@@ -245,16 +245,32 @@ void EventGenITS::initMonteCarloHitGen(const QSettings* settings)
       random_seed = r();
     }
 
+#ifdef ALIROOT_ENABLED && ROOT_ENABLED
+    std::cout << "Starting simulation for Focal with MCFileType "<< "aliroot" << "..." << std::endl;    
     mFocalEvents = new EventRootFocal(mDetectorConfig,
                                       &Focal::Focal_global_chip_id_to_position,
                                       &Focal::Focal_position_to_global_chip_id,
                                       monte_carlo_focal_data_file_str,
-                                      mDetectorConfig.staves_per_quadrant,
+                                      (monte_carlo_file_type == "aliroot"),
+				      mDetectorConfig.staves_per_quadrant,
                                       random_seed,
-                                      monte_carlo_file_type == "aliroot" ? true : false);
+				      false);
+    std::cout << "... started." << std::endl;
+#elif !ALIROOT_ENABLED && ROOT_ENABLED
+    std::cout << "Starting simulation for Focal with MCFileType "<< "root" << "..." << std::endl;    
+    mFocalEvents = new EventRootFocal(mDetectorConfig,
+                                      &Focal::Focal_global_chip_id_to_position,
+                                      &Focal::Focal_position_to_global_chip_id,
+                                      monte_carlo_focal_data_file_str,
+                                      (monte_carlo_file_type == "root"),
+				      mDetectorConfig.staves_per_quadrant,
+                                      random_seed,
+				      false);
+    std::cout << "... started." << std::endl;
+#endif
 
 #else
-    std::cerr << "Error: Simulation must be compiled with ROOT support for Focal simulation." << std::endl;
+    std::cerr << "Error: Simulation must be compiled with ROOT or AliRoot support for Focal simulation." << std::endl;
     exit(-1);
 #endif
 
@@ -263,7 +279,7 @@ void EventGenITS::initMonteCarloHitGen(const QSettings* settings)
     std::cerr << "Error: Only monte carlo files in ROOT or AliROOT format supported for Focal simulation." << std::endl;
     exit(-1);
   }
-  else if(monte_carlo_file_type == "root" && mSimType == "its") {
+  else if((monte_carlo_file_type == "root" || monte_carlo_file_type == "aliroot") && mSimType == "its") {
     std::cerr << "Error: MC files in ROOT format not supported for ITS simulation" << std::endl;
     exit(-1);
   }
@@ -818,8 +834,9 @@ void EventGenITS::generateMonteCarloEventData(uint64_t event_time_ns,
   if(mSimType == "its"){
     digits = mMCPhysicsEvents->getNextEvent();
   }
-  else if(mSimType == "focal" && mMCType=="root") {
-#ifdef ROOT_ENABLED
+  else if(mSimType == "focal" && (mMCType=="root" || mMCType=="aliroot")) {
+#ifdef ROOT_ENABLED || ALIROOT_ENABLED
+    std::cout << "...using digits of type " << mMCType << std::endl;
     digits = mFocalEvents->getNextEvent();
 #else
     throw std::runtime_error("EventGenITS::generateMonteCarloEventData(): Compile with ROOT for focal sim.");

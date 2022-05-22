@@ -14,10 +14,19 @@
 #include "Detector/Focal/FocalDetectorConfig.hpp"
 #include "EventRootFocal.hpp"
 
+#include <TFile.h>
+
+#include <AliFOCALCell.h>
+
 using boost::random::uniform_real_distribution;
 using boost::random::uniform_int_distribution;
 
 bool macro_cell_coords_to_chip_coords(const unsigned int macro_cell_x, const unsigned int macro_cell_y,
+                                      const unsigned int layer, unsigned int staves_per_quadrant,
+                                      unsigned int& global_chip_id, double& chip_x_mm,
+                                      double& chip_y_mm);
+
+bool global_cm_coords_to_chip_coords(const double global_cm_x, const double global_cm_y,
                                       const unsigned int layer, unsigned int staves_per_quadrant,
                                       unsigned int& global_chip_id, double& chip_x_mm,
                                       double& chip_y_mm);
@@ -46,10 +55,13 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
   : mConfig(config)
   , mGlobalChipIdToPositionFunc(global_chip_id_to_position_func)
   , mPositionToGlobalChipIdFunc(position_to_global_chip_id_func)
+  , mEventFileName(event_filename.toStdString())
   , mRandomEventOrder(random_event_order)
-  , mStavesPerQuadrant(staves_per_quadrant)
+  , mStavesPerQuadrant(staves_per_quadrant)	
   , mAliROOT(aliroot)
 {
+
+  std::cout <<"Constructing EventRootFocal object "<<std::endl;	
 
   if(random_seed == 0) {
     boost::random::random_device r;
@@ -61,6 +73,7 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
     mRandEventIdGen.seed(random_seed2);
     std::cout << "Random event ID generator random seed: " << random_seed << std::endl;
   } else {
+    std::cout << "\t...seed for random event ID generator: " << random_seed << std::endl;
     mRandHitGen.seed(random_seed);
     mRandEventIdGen.seed(random_seed);
   }
@@ -69,26 +82,34 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
   mRandHitMacroCellX = new uniform_real_distribution<double>(0, Focal::MACRO_CELL_SIZE_X_MM);
   mRandHitMacroCellY = new uniform_real_distribution<double>(0, Focal::MACRO_CELL_SIZE_Y_MM);
 
-  mRootFile = new TFile(event_filename.toStdString().c_str());
-
-  if(mRootFile->IsOpen() == kFALSE || mRootFile->IsZombie() == kTRUE) {
-    std::cerr << "Error: Opening \"" << event_filename.toStdString() << "\" failed." << std::endl;
-    exit(-1);
-  }
 
   mEvent = new MacroPixelEvent;
 
   if(mAliROOT){
 
-    std::cout << "Initializing EventRootFocal for aliroot file " << event_filename.toStdString() << std::endl; 
+#ifdef ALIROOT_ENABLED	  
+    std::cout << "\t...trying to open file " << event_filename.toStdString() << std::endl;
+    mRootFile = new TFile();
+    mRootFile = TFile::Open(event_filename.toStdString().c_str(), "READ");
+
+    if(mRootFile->IsOpen() == kFALSE || mRootFile->IsZombie() == kTRUE) {
+      std::cerr << "Error: Opening \"" << event_filename.toStdString() << "\" failed." << std::endl;
+      exit(-1);
+    } else {
+      std::cout << "\t...successfully opened file " << event_filename.toStdString() << std::endl;
+    }
+    std::cout << "\t...initializing EventRootFocal for aliroot file " << event_filename.toStdString() << std::endl; 
 
     mAliFOCALCells = new TClonesArray("AliFOCALCell", C_MAX_HITS);
-    mNumEntries = mAliFOCALCells->GetEntriesFast(); 
-
+    mNumEntries = mRootFile->GetListOfKeys()->GetEntries(); 
+    std::cout << "\t...found " << mNumEntries << " entries"<< std::endl; 
     
+#endif    
 
   } else {
 
+    mRootFile = new TFile();
+    mRootFile = TFile::Open(event_filename.toStdString().c_str(), "READ");
     mTree = (TTree*)mRootFile->Get("pixTree");
 
     mBranch_iEvent = mTree->GetBranch("iEvent");
@@ -158,7 +179,7 @@ void EventRootFocal::createHitsFromAliFOCALCellCM(double global_cm_x, double glo
   double chip_x_mm;
   double chip_y_mm;
 
-  bool hit_valid = macro_cell_coords_to_chip_coords(global_cm_x, global_cm_y, layer,
+  bool hit_valid = global_cm_coords_to_chip_coords(global_cm_x, global_cm_y, layer,
                                                     mStavesPerQuadrant, global_chip_id,
                                                     chip_x_mm, chip_y_mm);
 
@@ -185,7 +206,10 @@ void EventRootFocal::createHitsFromAliFOCALCellCM(double global_cm_x, double glo
         chip_row = 0;
 
       event->addHit(chip_col, chip_row, global_chip_id);
+      //std::cout <<"Added hit in layer "<<layer<<", chipid " << global_chip_id << ", col "<< chip_col << ", row "<< chip_row << std::endl;
     }
+  } else {
+    std::cout << "Invalid hit in layer "<<layer<<":" << global_cm_x << "cm, "<<global_cm_y<<"cm"<<std::endl;
   }
 }
 
@@ -238,7 +262,7 @@ void EventRootFocal::createHits(unsigned int macro_cell_col, unsigned int macro_
 ///@return Pointer to EventDigits object with the event that was read from file
 EventDigits* EventRootFocal::getNextAliROOTEvent(void){
 
-  std::cout << "Getting next aliroot event " << " from " << mRootFile->GetName() << std::endl;
+#ifdef ALIROOT_ENABLED	
 
   if(mEventDigits != nullptr)
     delete mEventDigits;
@@ -248,21 +272,28 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
   if(mRandomEventOrder)
     mEntryCounter = (*mRandEventIdDist)(mRandEventIdGen);
 
+  std::cout << "Getting next aliroot event index " << mEntryCounter << " from " << mRootFile->GetName() << std::endl;
 
   mRootFile->cd(Form("Event%lu", mEntryCounter));
   mTree = (TTree*) gDirectory->Get("fTreeR");
   mTree->SetBranchAddress("AliFOCALCell", &mAliFOCALCells);
+  mTree->GetEntry(0);
 
   unsigned int nHits = mAliFOCALCells->GetEntriesFast();
+  std::cout<<"...event contains "<<nHits<<" hits"<<std::endl;
   for(unsigned int i=0;i<nHits;i++){
 
       AliFOCALCell *afc = (AliFOCALCell*) mAliFOCALCells->At(i);
-
-      createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 0, mEventDigits);
-      createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 1, mEventDigits);
-
-      std::cout << "Filled " << mEventDigits->size() << " digits from AliROOT files in both layers" << std::endl;
+      if(afc->Segment()==1){
+	createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 0, mEventDigits);
+      }
+      if(afc->Segment()==3){
+      	createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 1, mEventDigits);
+      }
+  
   }
+  
+  std::cout << "Filled " << mEventDigits->size() << " digits from AliROOT files in both layers" << std::endl;
 
   mRootFile->cd("../");
 
@@ -278,6 +309,12 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
   std::cout << "Event size: " << mEventDigits->size() << std::endl;
 
   return mEventDigits;
+#else 
+  std::cerr << "Error: Trying to generate events from \"" << mEventFileName << "\" wihtout AliROOT suppert. Exiting." << std::endl;
+  exit(-1);
+
+#endif
+  
 
 }
 

@@ -25,6 +25,12 @@
 #ifndef ROOT_ENABLED
 #define ROOT_ENABLED
 #endif
+#ifndef ALIROOT_ENABLED
+#define ALIROOT_ENABLED
+#endif
+#ifndef FOCAL_ENABLED
+#define FOCAL_ENABLED
+#endif
 
 #ifdef ROOT_ENABLED
 #include "TSystem.h"
@@ -98,10 +104,13 @@ int sc_main(int argc, char** argv)
   QString sim_type = simulation_settings->value("simulation/type").toString();
 
   if(sim_type == "its") {
+    std::cout << "Creating ITS stimuli." << std::endl;
     stimuli = std::make_shared<StimuliITS>("stimuli", simulation_settings, output_dir_str);
   } else if(sim_type == "pct") {
+    std::cout << "Creating PCT stimuli." << std::endl;
     stimuli = std::make_shared<StimuliPCT>("stimuli", simulation_settings, output_dir_str);
   } else if(sim_type == "focal") {
+    std::cout << "Creating FOCAL stimuli." << std::endl;
     stimuli = std::make_shared<StimuliFocal>("stimuli", simulation_settings, output_dir_str);
   } else {
     std::cout << "Unknown simulation type " << sim_type.toStdString() << std::endl;

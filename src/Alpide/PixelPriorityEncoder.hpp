@@ -44,7 +44,7 @@ public:
      @return True if leftIn has highest priority, false if rightIn has higest priority
   */
   bool operator()(const std::shared_ptr<PixelHit> &leftIn,
-                  const std::shared_ptr<PixelHit> &rightIn)
+                  const std::shared_ptr<PixelHit> &rightIn) const
     {
       if(leftIn->mRow < rightIn->mRow)
         return true;

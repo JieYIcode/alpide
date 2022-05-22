@@ -7,6 +7,7 @@
 
 #include "StimuliBase.hpp"
 #include <iostream>
+#include <string>
 
 ///@brief Constructor for stimuli base class.
 ///@param[in] settings QSettings object with simulation settings.
@@ -39,7 +40,9 @@ StimuliBase::StimuliBase(sc_core::sc_module_name name,
   mChipCfg.matrix_readout_speed = settings->value("alpide/matrix_readout_speed_fast").toBool();
 
   if((mStrobeActiveNs+mStrobeInactiveNs) > mSystemContinuousPeriodNs) {
-    std::string error_msg = "Alpide strobe active + inactive time > system continuous period.";
+    std::string error_msg = "Alpide strobe active + inactive time (" 
+	    + std::to_string(mStrobeActiveNs+mStrobeInactiveNs) +"ns) >  system continuous period ("
+	    + std::to_string(mSystemContinuousPeriodNs) + "ns).";
     throw std::runtime_error(error_msg);
   }
 
@@ -63,7 +66,8 @@ StimuliBase::StimuliBase(sc_core::sc_module_name name,
   std::cout << "Strobe extension enabled: " << (mChipCfg.strobe_extension ? "true" : "false") << std::endl;
   std::cout << "Minimum busy cycles: " << mChipCfg.min_busy_cycles << std::endl;
   std::cout << "Data rate interval (ns): " << mDataRateIntervalNs << std::endl;
-
+// not needed for stimuli, but still outbut here for user info
+  std::cout << "Average event rate (ns): " << settings->value("event/average_event_rate_ns").toInt()  <<std::endl;
 
   if(mDataRateIntervalNs == 0) {
     std::string error_msg = "Data rate interval can not be zero.";

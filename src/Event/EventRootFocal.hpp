@@ -79,6 +79,8 @@ private:
 
   EventDigits* mEventDigits = nullptr;
 
+  std::string mEventFileName = "";
+  
   bool mRandomEventOrder;
   bool mMoreEventsLeft = true;
   uint64_t mNumEntries; // Number of entries in TTree
