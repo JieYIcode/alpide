@@ -228,7 +228,7 @@ int main(int argc, char** argv)
   QSettings *sim_settings = new QSettings(settings_file_path, QSettings::IniFormat);
 
   std::string root_filename = std::string(path) + "/focal.root";
-  TFile *f = new TFile(root_filename.c_str(), "recreate");
+  TFile *rootfile = new TFile(root_filename.c_str(), "recreate");
 
   std::string plots_path = std::string(path) + std::string("/plots");
   std::string mkdir_plots_path = "mkdir " + plots_path;
@@ -311,7 +311,7 @@ int main(int argc, char** argv)
   h3_data->SetTitle("Average data rate [Mbps] - Layer S3");
   create_focal_chip_bins(h3_data);
 
-  gStyle->SetPalette(1);
+  gStyle->SetPalette(kInvertedDarkBodyRadiator);
 
   unsigned int event_rate_ns = sim_settings->value("event/average_event_rate_ns").toUInt();
   unsigned long num_physics_events = get_num_triggered_events_simulated(path);
@@ -665,5 +665,5 @@ int main(int argc, char** argv)
   c1->Print(Form("%s/h3_frame_loss_radius.pdf", plots_path.c_str()));
 
   delete c1;
-  delete f;
+  delete rootfile;
 }
