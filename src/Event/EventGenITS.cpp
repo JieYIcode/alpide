@@ -59,8 +59,10 @@ EventGenITS::EventGenITS(sc_core::sc_module_name name,
   // Random number is always used for event time (follows exponential distribution)
   initRandomNumGen(settings);
 
-  if(mCreateCSVFile)
+  if(mCreateCSVFile){
     initCsvEventFileHeader(settings);
+    initPhysicsEventRootFile(settings);
+  }
 
 
   //////////////////////////////////////////////////////////////////////////////
@@ -93,6 +95,12 @@ EventGenITS::~EventGenITS()
 
   if(mPhysicsEventsCSVFile.is_open())
     mPhysicsEventsCSVFile.close();
+
+  if(mPhysicsEventRootFile->IsOpen()){
+    mPhysicsEventTree->Write();
+    mPhysicsEventRootFile->Close();
+  }
+  delete mPhysicsEventRootFile;
 }
 
 
@@ -405,6 +413,59 @@ void EventGenITS::initCsvEventFileHeader(const QSettings* settings)
   mPhysicsEventsCSVFile << std::endl;
 }
 
+#ifdef ROOT_ENABLED || ALIROOT_ENABLED
+
+void EventGenITS::initPhysicsEventRootFile(const QSettings *settings){
+
+  std::string physics_event_root_filename = mOutputPath + std::string("/PhysicsEventData.root");
+  mPhysicsEventRootFile = TFile::Open(physics_event_root_filename.c_str(), "RECREATE");
+
+  mPhysicsEventTree = new TTree("mPhysicsEvents", "Physics event tree of AlpideSystemC simulation");
+  mPhysicsEventTree->Branch("index", &mPhysicsEventData.index);
+  mPhysicsEventTree->Branch("tDelta", &mPhysicsEventData.tDelta);
+  mPhysicsEventTree->Branch("globalNHits", &mPhysicsEventData.globalNHits);
+  mPhysicsEventTree->Branch("globalNLayer0", &mPhysicsEventData.globalNHitsLayer0);
+  mPhysicsEventTree->Branch("globalNLayer1", &mPhysicsEventData.globalNHitsLayer1);
+
+  mPhysicsEventTree->Branch("layerId", &mPhysicsEventData.layerId);
+  mPhysicsEventTree->Branch("staveId", &mPhysicsEventData.staveId);
+  mPhysicsEventTree->Branch("chipId", &mPhysicsEventData.chipId);
+  mPhysicsEventTree->Branch("nHits", &mPhysicsEventData.nHits);
+
+}
+
+#endif
+
+void EventGenITS::fillPhysicsEventRootFile(uint64_t t_delta,
+                                  unsigned int event_pixel_hit_count,
+                                  std::map<unsigned int, unsigned int> &chip_hits,
+                                  std::map<unsigned int, unsigned int> &layer_hits){
+  mPhysicsEventData.tDelta = t_delta;
+  mPhysicsEventData.globalNHits = event_pixel_hit_count;
+  mPhysicsEventData.globalNHitsLayer0 = layer_hits[0];
+  mPhysicsEventData.globalNHitsLayer1 = layer_hits[1];
+
+  // Write multiplicity for the chips that were included in the simulation
+  for(unsigned int layer = 0; layer < Focal::N_LAYERS; layer++) {
+    unsigned int chip_id = Focal::CUMULATIVE_CHIP_COUNT_AT_LAYER[layer];
+    for(unsigned int stave = 0; stave < mDetectorConfig.layer[layer].num_staves; stave++) {
+      for(unsigned int stave_chip = 0; stave_chip < Focal::CHIPS_PER_STAVE; stave_chip++) {
+	mPhysicsEventData.layerId = layer;
+	mPhysicsEventData.staveId = stave;
+	mPhysicsEventData.staveChipId = stave_chip;
+	mPhysicsEventData.chipId = chip_id;
+	mPhysicsEventData.nHits = chip_hits[chip_id];
+	if(mPhysicsEventData.nHits!=0){
+		mPhysicsEventTree->Fill();
+		mPhysicsEventTree->Write();
+	}
+        chip_id++;
+      }
+    }
+  }
+  mPhysicsEventData.index++;
+
+}
 
 void EventGenITS::addCsvEventLine(uint64_t t_delta,
                                   unsigned int event_pixel_hit_count,
@@ -940,8 +1001,10 @@ uint64_t EventGenITS::generateNextPhysicsEvent(void)
   t_delta = t_delta_cycles * mBunchCrossingRate_ns;
 
   // Write event rate and multiplicity numbers to CSV file
-  if(mCreateCSVFile)
+  if(mCreateCSVFile){
     addCsvEventLine(t_delta, event_pixel_hit_count, chip_hits, layer_hits);
+    fillPhysicsEventRootFile(t_delta, event_pixel_hit_count, chip_hits, layer_hits);
+  }
 
   if(mTriggeredEventCount % 100 == 0) {
     std::cout << "@ " << time_now << " ns: ";

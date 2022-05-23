@@ -100,6 +100,7 @@ private:
   void busyChainMethod(void);
 //  void processInputData(void);
   void writeTriggerEventTree(ReadoutUnitEventType type, TTree *tree) const;
+  void writeDataRateTree(TTree *datarate_tree) const;
 
 public:
   ReadoutUnit(sc_core::sc_module_name name,
@@ -124,7 +125,7 @@ public:
   unsigned int numCtrlLinks(void) const { return s_alpide_control_output.size(); }
   unsigned int numDataLinks(void) const { return s_alpide_data_input.size(); }
   void addTraces(sc_trace_file *wf, std::string name_prefix) const;
-  void writeSimulationStats(const std::string output_path) const;
+  void writeSimulationStats(const std::string output_path, bool onlyRoot=false) const;
   void writeSimulationStatsROOT(const std::string output_path) const;
 
 };  

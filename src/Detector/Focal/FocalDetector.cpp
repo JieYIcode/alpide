@@ -303,7 +303,7 @@ void FocalDetector::writeSimulationStats(const std::string output_path) const
       std::stringstream ss;
       ss << output_path << "/RU_" << layer << "_" << stave;
 
-      mReadoutUnits[layer][stave].writeSimulationStats(ss.str());
+      mReadoutUnits[layer][stave].writeSimulationStats(ss.str(), false);
     }
   }
 

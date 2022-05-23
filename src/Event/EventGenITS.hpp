@@ -20,6 +20,24 @@
 
 #ifdef ROOT_ENABLED
 #include "EventRootFocal.hpp"
+
+typedef struct {
+
+  Int_t index=0;
+  Int_t tDelta;
+
+  Int_t globalNHits;
+  Int_t globalNHitsLayer0;
+  Int_t globalNHitsLayer1;
+  
+  Int_t layerId;
+  Int_t staveId;
+  Int_t staveChipId;
+  Int_t chipId;
+
+  Int_t nHits;
+} PhysicsEventData;
+
 #endif
 
 
@@ -49,6 +67,7 @@ private:
 
 #ifdef ROOT_ENABLED
   EventRootFocal* mFocalEvents = nullptr;
+  PhysicsEventData mPhysicsEventData = {};
 #endif
 
   Detector::DetectorConfigBase mDetectorConfig;
@@ -83,6 +102,16 @@ private:
 
   std::ofstream mPhysicsEventsCSVFile;
 
+#ifdef ROOT_ENABLED || ALIROOT_ENABLE
+  TTree *mPhysicsEventTree;
+  TFile *mPhysicsEventRootFile;
+  void initPhysicsEventRootFile(const QSettings *settings);
+  void fillPhysicsEventRootFile(uint64_t t_delta,
+                                  unsigned int event_pixel_hit_count,
+                                  std::map<unsigned int, unsigned int> &chip_hits,
+                                  std::map<unsigned int, unsigned int> &layer_hits);
+#endif
+
   void generateRandomEventData(uint64_t event_time_ns,
                                unsigned int &event_pixel_hit_count,
                                std::map<unsigned int, unsigned int> &chip_hits,
@@ -104,7 +133,7 @@ private:
   void addCsvEventLine(uint64_t t_delta,
                        unsigned int event_pixel_hit_count,
                        std::map<unsigned int, unsigned int> &chip_hits,
-                       std::map<unsigned int, unsigned int> &layer_hits);
+                       std::map<unsigned int, unsigned int> &layer_hits);  
   double normalizeDiscreteDistribution(std::vector<double> &dist_vector);
   unsigned int getRandomMultiplicity(void);
   void physicsEventMethod(void);
