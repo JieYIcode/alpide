@@ -419,9 +419,9 @@ void EventGenITS::initPhysicsEventRootFile(const QSettings *settings){
 
   std::string physics_event_root_filename = mOutputPath + std::string("/PhysicsEventData.root");
   mPhysicsEventRootFile = TFile::Open(physics_event_root_filename.c_str(), "RECREATE");
+  mPhysicsEventRootFile->cd();
 
   mPhysicsEventTree = new TTree("mPhysicsEvents", "Physics event tree of AlpideSystemC simulation");
-  mPhysicsEventTree->Branch("index", &mPhysicsEventData.index);
   mPhysicsEventTree->Branch("tDelta", &mPhysicsEventData.tDelta);
   mPhysicsEventTree->Branch("globalNHits", &mPhysicsEventData.globalNHits);
   mPhysicsEventTree->Branch("globalNLayer0", &mPhysicsEventData.globalNHitsLayer0);
@@ -432,6 +432,7 @@ void EventGenITS::initPhysicsEventRootFile(const QSettings *settings){
   mPhysicsEventTree->Branch("chipId", &mPhysicsEventData.chipId);
   mPhysicsEventTree->Branch("nHits", &mPhysicsEventData.nHits);
 
+  mPhysicsEventTree->SetMaxTreeSize(0x8000000);
 }
 
 #endif
@@ -450,20 +451,18 @@ void EventGenITS::fillPhysicsEventRootFile(uint64_t t_delta,
     unsigned int chip_id = Focal::CUMULATIVE_CHIP_COUNT_AT_LAYER[layer];
     for(unsigned int stave = 0; stave < mDetectorConfig.layer[layer].num_staves; stave++) {
       for(unsigned int stave_chip = 0; stave_chip < Focal::CHIPS_PER_STAVE; stave_chip++) {
-	mPhysicsEventData.layerId = layer;
-	mPhysicsEventData.staveId = stave;
-	mPhysicsEventData.staveChipId = stave_chip;
-	mPhysicsEventData.chipId = chip_id;
-	mPhysicsEventData.nHits = chip_hits[chip_id];
-	if(mPhysicsEventData.nHits!=0){
-		mPhysicsEventTree->Fill();
-		mPhysicsEventTree->Write();
+	if(chip_hits[chip_id]!=0){
+	  mPhysicsEventData.layerId.push_back(layer);
+	  mPhysicsEventData.staveId.push_back(stave);
+	  mPhysicsEventData.staveChipId.push_back(stave_chip);
+	  mPhysicsEventData.chipId.push_back(chip_id);
+	  mPhysicsEventData.nHits.push_back(chip_hits[chip_id]);
 	}
         chip_id++;
       }
     }
   }
-  mPhysicsEventData.index++;
+  mPhysicsEventTree->Fill();
 
 }
 

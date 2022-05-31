@@ -5,7 +5,7 @@ project(analysis_macros)
 set(CMAKE_CXX_FLAGS "-Wall -Wextra -O3 -g")
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  set (CMAKE_CXX_FLAGS "--std=c++11 ${CMAKE_CXX_FLAGS}")
+  set (CMAKE_CXX_FLAGS "--std=c++17 ${CMAKE_CXX_FLAGS}")
 endif ()
 
 #set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/../bin)
@@ -26,6 +26,11 @@ include(${ROOT_USE_FILE})
 
 find_package(Qt5Core REQUIRED)
 get_target_property(QtCore_location Qt5::Core LOCATION)
+
+find_package(Boost REQUIRED)
+if(Boost_FOUND)
+  include_directories(${Boost_INCLUDE_DIRS})
+endif()
 
 
 #include_directories(
@@ -85,11 +90,23 @@ list (APPEND FOCAL_SRCS "${PROJECT_SOURCE_DIR}/focal/focal_detector_plane.cpp")
 list (APPEND FOCAL_SRCS "${PROJECT_SOURCE_DIR}/../src/Detector/Focal/FocalDetectorConfig.cpp")
 list (APPEND FOCAL_SRCS "${PROJECT_SOURCE_DIR}/get_num_events.cpp")
 
+list (APPEND FOCAL_SUM_SRCS "${PROJECT_SOURCE_DIR}/focal/sum_sim_data.cpp")
+list (APPEND FOCAL_SUM_SRCS "${PROJECT_SOURCE_DIR}/focal/read_csv.cpp")
+list (APPEND FOCAL_SUM_SRCS "${PROJECT_SOURCE_DIR}/focal/focal_detector_plane.cpp")
+list (APPEND FOCAL_SUM_SRCS "${PROJECT_SOURCE_DIR}/../src/Detector/Focal/FocalDetectorConfig.cpp")
+list (APPEND FOCAL_SUM_SRCS "${PROJECT_SOURCE_DIR}/get_num_events.cpp")
+
 add_executable(focal_plot_sim_data ${FOCAL_SRCS} )
 target_link_libraries(focal_plot_sim_data Qt5Core)
 target_link_libraries(focal_plot_sim_data ${ROOT_LIBRARIES})
 set_target_properties(focal_plot_sim_data PROPERTIES LINKER_LANGUAGE CXX)
 qt5_use_modules(focal_plot_sim_data Core Xml)
+
+add_executable(focal_sum_sim_data ${FOCAL_SUM_SRCS} )
+target_link_libraries(focal_sum_sim_data Qt5Core)
+target_link_libraries(focal_sum_sim_data ${ROOT_LIBRARIES})
+set_target_properties(focal_sum_sim_data PROPERTIES LINKER_LANGUAGE CXX)
+qt5_use_modules(focal_sum_sim_data Core Xml)
 
 # add a target to generate API documentation with Doxygen
 #find_package(Doxygen)

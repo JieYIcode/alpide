@@ -23,19 +23,18 @@
 
 typedef struct {
 
-  Int_t index=0;
   Int_t tDelta;
 
   Int_t globalNHits;
   Int_t globalNHitsLayer0;
   Int_t globalNHitsLayer1;
   
-  Int_t layerId;
-  Int_t staveId;
-  Int_t staveChipId;
-  Int_t chipId;
+  std::vector<int> layerId;
+  std::vector<int> staveId;
+  std::vector<int> staveChipId;
+  std::vector<int> chipId;
 
-  Int_t nHits;
+  std::vector<int> nHits;
 } PhysicsEventData;
 
 #endif

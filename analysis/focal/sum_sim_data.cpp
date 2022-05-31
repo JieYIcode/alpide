@@ -15,6 +15,8 @@
 #include "../../src/Detector/ITS/ITS_constants.hpp"
 #include "focal_detector_plane.hpp"
 #include "read_csv.hpp"
+#include "./utils/PathFinder.cpp"
+#include <boost/algorithm/string/replace.hpp>
 
 const unsigned int NUM_BINS_RADIUS_PLOTS = 15;
 const double CHIP_SIZE_X_MM = 30.0;
@@ -218,31 +220,38 @@ TH1F* create_radius_plot(unsigned int staves_per_quadrant,
 int main(int argc, char** argv)
 {
   if(argc != 2) {
-    std::cout << "I take one argument: path to simulation run directory" << std::endl;
+    std::cout << "I take one argument: path to simulation base run directory" << std::endl;
     exit(0);
   }
 
-  char* path = argv[1];
+  //char* path = argv[1];
+  std::string basedir = argv[1];
+  std::string head = "focal";
+  std::string ext = ".root";
 
-  QString settings_file_path = QString(path) + "/settings.txt";
-  QSettings *sim_settings = new QSettings(settings_file_path, QSettings::IniFormat);
-  unsigned int event_rate_ns = sim_settings->value("event/average_event_rate_ns").toUInt();
-  unsigned long num_physics_events = get_num_triggered_events_simulated(path);
-  unsigned long sim_time_ns = event_rate_ns*num_physics_events;
-
-  std::string root_filename = std::string(path) + "/focal.root";
-  TFile *rootfile = new TFile(root_filename.c_str(), "recreate");
-
-  std::string plots_path = std::string(path) + std::string("/plots");
+  std::string plots_path = std::string(basedir) + std::string("/plots");
   std::string mkdir_plots_path = "mkdir " + plots_path;
   system(mkdir_plots_path.c_str());
 
-  std::vector<std::map<std::string, unsigned long> > alpide_data;
+  std::vector<std::string> focalpaths;
+  PathFinder(basedir, head, ext, focalpaths);
+  if(focalpaths.size()){
+    std::cout << "Found " << focalpaths.size() << " files to be used." << std::endl;
+  } else {
+    std::cerr << "No focal data files found." << std::endl;
+    exit(-1);
+  }
 
-  alpide_data = read_csv(std::string(path) + std::string("/Alpide_stats.csv"), ';');
+  for(std::string fp : focalpaths){
+    std::cout << "\t"<< fp << std::endl;
+  }
+
+
+  TFile *writefile = new TFile(Form("%s/sum_focal.root", basedir.c_str()), "RECREATE");
 
   TCanvas *c1 = new TCanvas("c1","c1",1200,800);
 
+  writefile->cd();
   TH2Poly *h1_pixels_avg = new TH2Poly();
   TH2Poly *h1_busy_avg = new TH2Poly();
   TH2Poly *h1_busyv_avg = new TH2Poly();
@@ -315,56 +324,42 @@ int main(int argc, char** argv)
   create_focal_chip_bins(h3_data);
 
   gStyle->SetPalette(kInvertedDarkBodyRadiator);
+  
+  unsigned int staves_per_quadrant=33;
+  
 
+  for(std::string path:focalpaths){
+    std::string infopath=path;
+    boost::replace_all(infopath , "/focal.root" , "/");
+    std::cout << "\tpath = " << infopath << std::endl; 
+    QString settings_file_path = QString(infopath.c_str()) + "/settings.txt";
+    QSettings *sim_settings = new QSettings(settings_file_path, QSettings::IniFormat);
 
-  for(unsigned int i = 0; i < alpide_data.size(); i++) {
-    unsigned int busy_count = alpide_data[i]["Busy"];
-    unsigned int busyv_count = alpide_data[i]["Busy violations"];
-    unsigned int flush_count = alpide_data[i]["Flushed Incompletes"];
-    unsigned long pixel_hits = alpide_data[i]["Latched pixel hits"];
-    unsigned long accepted_trigs = alpide_data[i]["Accepted triggers"];
-    unsigned long received_trigs = alpide_data[i]["Received triggers"];
+    unsigned int event_rate_ns = sim_settings->value("event/average_event_rate_ns").toUInt();
+    unsigned long num_physics_events = get_num_triggered_events_simulated(infopath.c_str());
+    unsigned long sim_time_ns = event_rate_ns*num_physics_events;
 
-    unsigned int layer = alpide_data[i]["Layer ID"];
-    unsigned int chip_id_in_layer = alpide_data[i]["Unique Chip ID"];
+    std::cout << sim_time_ns << std::endl;
+    staves_per_quadrant = sim_settings->value("focal/staves_per_quadrant").toUInt();
 
-    if(layer > 0)
-      chip_id_in_layer -= Focal::CHIPS_PER_LAYER;
+    TFile *focalfile = new TFile(path.c_str(), "READ");
 
-    unsigned int bin_num = chip_id_in_layer+1;
+    h1_data->Add((TH2Poly*) focalfile->Get("h1_data"), 1);
+    h3_data->Add((TH2Poly*) focalfile->Get("h3_data"), 1);
+    h1_pixels_avg->Add((TH2Poly*) focalfile->Get("h1_pixels_avg"), 1);
+    h3_pixels_avg->Add((TH2Poly*) focalfile->Get("h3_pixels_avg"), 1);
 
-    if(is_outer_barrel_master(alpide_data[i])) {
-      // Busy count in the CSV file contains sum of busy from all slaves + master
-      // for the OB master chip. This function subtracts the busy counts for the slaves
-      busy_count = get_ob_master_busy_count(alpide_data, i);
-    }
-
-    double avg_pix_hit_occupancy = (double)pixel_hits / accepted_trigs;
-    double avg_busy_count = (double)busy_count / received_trigs;
-    double avg_busyv_count = (double)busyv_count / received_trigs;
-    double avg_flush_count = (double)flush_count / accepted_trigs;
-    double frame_readout_efficiency = 1.0 - (busyv_count+flush_count)/(double)received_trigs;
-
-    double data_rate_mbps = calculate_data_rate(alpide_data[i], sim_time_ns);
-
-    if(layer == 0) {
-      h1_pixels_avg->SetBinContent(bin_num, avg_pix_hit_occupancy);
-      h1_busy_avg->SetBinContent(bin_num, avg_busy_count);
-      h1_busyv_avg->SetBinContent(bin_num, avg_busyv_count);
-      h1_flush_avg->SetBinContent(bin_num, avg_flush_count);
-      h1_frame_efficiency->SetBinContent(bin_num, frame_readout_efficiency);
-      h1_frame_loss->SetBinContent(bin_num, 1.0-frame_readout_efficiency);
-      h1_data->SetBinContent(bin_num, data_rate_mbps);
-    } else {
-      h3_pixels_avg->SetBinContent(bin_num, avg_pix_hit_occupancy);
-      h3_busy_avg->SetBinContent(bin_num, avg_busy_count);
-      h3_busyv_avg->SetBinContent(bin_num, avg_busyv_count);
-      h3_flush_avg->SetBinContent(bin_num, avg_flush_count);
-      h3_frame_efficiency->SetBinContent(bin_num, frame_readout_efficiency);
-      h3_frame_loss->SetBinContent(bin_num, 1.0-frame_readout_efficiency);
-      h3_data->SetBinContent(bin_num, data_rate_mbps);
-    }
+    focalfile->Close();
+    focalfile->Delete();
   }
+
+  writefile->cd();
+
+  //Scale histograms which have to be sclaed after adding
+  h1_data->Scale(1./focalpaths.size());
+  h3_data->Scale(1./focalpaths.size());
+  h1_pixels_avg->Scale(1./focalpaths.size());
+  h3_pixels_avg->Scale(1./focalpaths.size());
 
   c1->SetRightMargin(0.2);
   c1->Update();
@@ -523,7 +518,6 @@ int main(int argc, char** argv)
   // ---------------------------------------------------------------------------
   // Make plots versus radius/distance from center of detector plane
   // ---------------------------------------------------------------------------
-  unsigned int staves_per_quadrant = sim_settings->value("focal/staves_per_quadrant").toUInt();
 
   TH1F* h1_data_radius = create_radius_plot(staves_per_quadrant,
                                             h1_data, "h1_data_radius",
@@ -664,6 +658,9 @@ int main(int argc, char** argv)
   c1->Print(Form("%s/h3_frame_loss_radius.png", plots_path.c_str()));
   c1->Print(Form("%s/h3_frame_loss_radius.pdf", plots_path.c_str()));
 
+  writefile->Close();
+
   delete c1;
-  delete rootfile;
+  delete writefile;
+  //delete rootfile;
 }

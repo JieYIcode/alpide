@@ -83,7 +83,6 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
   mRandHitMacroCellY = new uniform_real_distribution<double>(0, Focal::MACRO_CELL_SIZE_Y_MM);
 
 
-  mEvent = new MacroPixelEvent;
 
   if(mAliROOT){
 
@@ -100,13 +99,14 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
     }
     std::cout << "\t...initializing EventRootFocal for aliroot file " << event_filename.toStdString() << std::endl; 
 
-    mAliFOCALCells = new TClonesArray("AliFOCALCell", C_MAX_HITS);
     mNumEntries = mRootFile->GetListOfKeys()->GetEntries(); 
     std::cout << "\t...found " << mNumEntries << " entries"<< std::endl; 
     
 #endif    
 
   } else {
+  
+    mEvent = new MacroPixelEvent;
 
     mRootFile = new TFile();
     mRootFile = TFile::Open(event_filename.toStdString().c_str(), "READ");
@@ -276,24 +276,38 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
 
   mRootFile->cd(Form("Event%lu", mEntryCounter));
   mTree = (TTree*) gDirectory->Get("fTreeR");
-  mTree->SetBranchAddress("AliFOCALCell", &mAliFOCALCells);
+  
+  TClonesArray *afcs = new TClonesArray("AliFOCALCell", C_MAX_HITS);
+  mTree->SetBranchAddress("AliFOCALCell", &afcs);
+  
   mTree->GetEntry(0);
 
-  unsigned int nHits = mAliFOCALCells->GetEntriesFast();
+  //unsigned int nHits = mAliFOCALCells->GetEntriesFast();
+  unsigned int nHits = afcs->GetEntries();
   std::cout<<"...event contains "<<nHits<<" hits"<<std::endl;
-  for(unsigned int i=0;i<nHits;i++){
+  
+  AliFOCALCell *afc = new AliFOCALCell();
 
-      AliFOCALCell *afc = (AliFOCALCell*) mAliFOCALCells->At(i);
+  for(unsigned int i=0;i<nHits;i++){
+ 
+      afc = (AliFOCALCell*) afcs->At(i);
       if(afc->Segment()==1){
+      	//std::cout << mEntryCounter << ": getting hit " << i << " / " <<nHits << " in segment S" << afc->Segment(); 
 	createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 0, mEventDigits);
+	//std::cout << " ... done " << std::endl;
       }
       if(afc->Segment()==3){
+      	//std::cout << mEntryCounter << ": getting hit " << i << " / " <<nHits << " in segment S" << afc->Segment(); 
       	createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 1, mEventDigits);
+	//std::cout << " ... done " << std::endl;
       }
   
   }
   
   std::cout << "Filled " << mEventDigits->size() << " digits from AliROOT files in both layers" << std::endl;
+  
+  delete afc;
+  delete afcs;
 
   mRootFile->cd("../");
 
@@ -310,7 +324,7 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
 
   return mEventDigits;
 #else 
-  std::cerr << "Error: Trying to generate events from \"" << mEventFileName << "\" wihtout AliROOT suppert. Exiting." << std::endl;
+  std::cerr << "Error: Trying to generate events from \"" << mEventFileName << "\" wihtout AliROOT support. Exiting." << std::endl;
   exit(-1);
 
 #endif

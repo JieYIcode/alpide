@@ -15,11 +15,12 @@ strobe_extension_enable=false
 [data_output]
 data_rate_interval_ns=10000
 write_event_csv=true
+write_event_root=true
 write_vcd=false
 write_vcd_clock=false
 
 [event]
-average_event_rate_ns=2000
+average_event_rate_ns=250
 monte_carlo_file_type=aliroot
 qed_noise_event_rate_ns=10000
 qed_noise_feed_rate_ns=5000
@@ -37,7 +38,7 @@ trigger_filter_enable=true
 trigger_filter_time_ns=1230
 
 [focal]
-monte_carlo_file_path=/home/mxr/data/focal_sim/test/test.root
+monte_carlo_file_path=/software/max/alice/work/clusters_test/clusters_test_test_1.root
 staves_per_quadrant=33
 
 [its]
@@ -76,8 +77,8 @@ random_particles_per_s_stddev=0.5E9
 time_frame_length_ns=10000
 
 [simulation]
-n_events=10
-random_seed=1337
+n_events=500
+random_seed=0
 single_chip=false
 system_continuous_mode=true
 system_continuous_period_ns=10000
