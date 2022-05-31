@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 
+#execute_process(COMMAND ${CMAKE_COMMAND} -E echo `root-config --glibs --cflags` OUTPUT_VARIABLE MYROOT)
+#message(STATUS "using my root installation: ${MYROOT}")
 set(CMAKE_CXX_FLAGS "-Wall -Wextra -O3 -g")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
@@ -39,11 +41,41 @@ if(DEFINED ENV{ROOTSYS})
   # Locate the ROOT package and defines a number of variables (e.g. ROOT_INCLUDE_DIRS)
   #find_package(ROOT REQUIRED COMPONENTS)
   find_package(ROOT REQUIRED COMPONENTS RooFit Html Minuit RooFitCore RooStats HistFactory Tree)
+  if(ROOT_FOUND)
+    message(STATUS "ROOT library = ${ROOT_LIBRARIES}")
+    message(STATUS "ROOT include = ${ROOT_INCLUDE_DIRS}")
+    include_directories(${ROOT_INCLUDE_DIRS})
+    message(STATUS "Found ROOT and including libraries")
+    # Define useful ROOT functions and macros (e.g. ROOT_GENERATE_DICTIONARY)
+    include(${ROOT_USE_FILE})
+  endif()
 
-  # Define useful ROOT functions and macros (e.g. ROOT_GENERATE_DICTIONARY)
-  include(${ROOT_USE_FILE})
 else()
   message(STATUS "Compiling without ROOT support. Monte Carlo input in pCT simulation not supported.")
+endif()
+
+
+if(DEFINED ENV{FOCAL})
+  message(STATUS "Compiling with FOCAL/AliRoot support")
+  list(APPEND CMAKE_PREFIX_PATH $ENV{ALICE_ROOT})
+  list(APPEND CMAKE_PREFIX_PATH $ENV{FOCAL})
+
+  # Find ROOT with CMake:
+  # https://root.cern.ch/how/integrate-root-my-project-cmake
+  #list(APPEND CMAKE_PREFIX_PATH $ENV{FOCAL})
+
+  #include_directories($FOCAL_INCLUDE_DIRS)
+  #include_directories($FOCAL/include)
+  #target_include_directories(focal PUBLIC ${FOCAL}/include)
+
+  # Locate the ROOT package and defines a number of variables (e.g. ROOT_INCLUDE_DIRS)
+  #find_package(ROOT REQUIRED COMPONENTS)
+  #find_package(FOCAL REQUIRED COMPONENTS FOCALbase FOCALgen FOCALsim)
+
+  # Define useful ROOT functions and macros (e.g. ROOT_GENERATE_DICTIONARY)
+  #include(${ALIROOT_USE_FILE})
+else()
+  message(STATUS "Compiling without FOCAL/AliRoot support. FOCAL/AliRoot input in FOCAL simulation not supported.")
 endif()
 
 
@@ -55,11 +87,12 @@ FIND_PACKAGE(SystemC MODULE REQUIRED)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/../bin)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  set (CMAKE_CXX_FLAGS "--std=c++11 ${CMAKE_CXX_FLAGS}")
+  set (CMAKE_CXX_FLAGS "--std=c++17 ${CMAKE_CXX_FLAGS}")
 endif ()
 
 include_directories(
   ${SystemC_INCLUDE_DIRS}
+  ${ROOT_INCLUDE_DIRS}
   ${MODULE_INCLUDES}
   vcd_hierarchy_manipulator
   src
@@ -118,9 +151,39 @@ target_link_libraries(alpide_dataflow_sim ${SystemC_LIBRARIES} pthread boost_ran
 set_target_properties(alpide_dataflow_sim PROPERTIES LINKER_LANGUAGE CXX)
 qt5_use_modules(alpide_dataflow_sim Core Xml)
 
-if(DEFINED ENV{ROOTSYS})
+if(DEFINED ENV{ROOTSYS} AND NOT DEFINED ENV{FOCAL})
   target_link_libraries(alpide_dataflow_sim ${ROOT_LIBRARIES})
   add_definitions(-DROOT_ENABLED)
+endif()
+
+if(DEFINED ENV{FOCAL})
+ 
+  message(STATUS "including target directory $ENV{FOCAL}/include")
+  target_include_directories(alpide_dataflow_sim PUBLIC "$ENV{FOCAL}/include")
+  message(STATUS "including target directory $ENV{ALICE_ROOT}/include")
+  target_include_directories(alpide_dataflow_sim PUBLIC "$ENV{ALICE_ROOT}/include")
+  message(STATUS "including target directory $ENV{ROOTSYS}/include")
+  target_include_directories(alpide_dataflow_sim PUBLIC "$ENV{ROOTSYS}/include")
+  
+  message(STATUS "target link libraries ${ROOT_LIBRARIES}")
+  target_link_libraries(alpide_dataflow_sim ${ROOT_LIBRARIES})
+  
+  message(STATUS "target link libraries FOCAL libraries $ENV{FOCAL}/lib")
+  target_link_libraries(alpide_dataflow_sim "$ENV{FOCAL}/lib/libFOCALbase.so")
+  target_link_libraries(alpide_dataflow_sim "$ENV{FOCAL}/lib/libFOCALsim.so")
+  target_link_libraries(alpide_dataflow_sim "$ENV{FOCAL}/lib/libFOCALgen.so")
+  
+  #target_link_libraries(alpide_dataflow_sim "$ENV{FOCAL}/lib/libFOCALbase.so")
+  #message(STATUS "linking libraries $ENV{ROOTSYS}")
+  
+  #target_link_libraries(alpide_dataflow_sim "$ENV{FOCAL}/lib/libFOCALsim.so")
+  #target_link_libraries(alpide_dataflow_sim "$ENV{FOCAL}/lib/libFOCALgen.so")
+  #target_link_libraries(alpide_dataflow_sim "$ENV{FOCAL}/include")
+  #target_link_libraries(alpide_dataflow_sim "$ENV{FOCAL}/lib")
+  add_definitions(-DFOCAL_ENABLED)
+  add_definitions(-DALIROOT_ENABLED)
+  add_definitions(-DROOT_ENABLED)
+  #message(STATUS "$ENV{FOCAL}/lib/*so linked")
 endif()
 
 # add a target to generate API documentation with Doxygen
