@@ -218,5 +218,6 @@ void StimuliFocal::writeStimuliInfo(void) const
 
 
 StimuliFocal::~StimuliFocal(){
+  std::cout << "Stimuli destructor called" << std::endl;
   mFocal.reset();
 }

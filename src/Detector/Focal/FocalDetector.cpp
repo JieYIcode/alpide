@@ -311,5 +311,5 @@ void FocalDetector::writeSimulationStats(const std::string output_path) const
 }
 
 FocalDetector::~FocalDetector(){
-
+  std::cout << "FOCALDetector destructor called." << std::endl;
 }

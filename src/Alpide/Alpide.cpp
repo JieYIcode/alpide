@@ -882,8 +882,5 @@ void Alpide::addTraces(sc_trace_file *wf, std::string name_prefix) const
 }
 
 Alpide::~Alpide(){
-  //std::cout << "Alpide: destructor for chip " << mGlobalChipId << " called." << std::endl;
-  for(RegionReadoutUnit *r : mRRUs){
-    delete r;
-  }
+  std::cout << "\tAlpide destructor for chip " << mGlobalChipId << " (local chip id " << mLocalChipId<< ") called." << std::endl;
 }

@@ -1162,4 +1162,8 @@ void ReadoutUnit::writeTriggerEventTree(ReadoutUnitEventType type, TTree *tree) 
   }
 }
 
+ReadoutUnit::~ReadoutUnit(){
+  std::cout<<"  ReadoutUnit destructor (RU layer" << mLayerId << ", stave "<< mStaveId << ") called" <<std::endl;
+}
+
 #endif

@@ -127,6 +127,7 @@ public:
   void addTraces(sc_trace_file *wf, std::string name_prefix) const;
   void writeSimulationStats(const std::string output_path, bool onlyRoot=false) const;
   void writeSimulationStatsROOT(const std::string output_path) const;
+  ~ReadoutUnit();
 
 };  
 

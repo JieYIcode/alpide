@@ -78,6 +78,8 @@ EventGenITS::EventGenITS(sc_core::sc_module_name name,
 ///@brief Destructor for EventGenITS class
 EventGenITS::~EventGenITS()
 {
+
+  std::cout << "EventGenITS destructor called..." ;
   if(mRandomHitGeneration) {
     for(unsigned int layer = 0; layer < ITS::N_LAYERS; layer++) {
       delete mRandChipID[layer];
@@ -103,6 +105,8 @@ EventGenITS::~EventGenITS()
   }
   delete mPhysicsEventRootFile;
   delete mFocalEvents;
+
+  std::cout << " finished." << std::endl;
 }
 
 
