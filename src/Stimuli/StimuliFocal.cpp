@@ -215,3 +215,8 @@ void StimuliFocal::writeStimuliInfo(void) const
   info_file << "Number of untriggered events simulated: ";
   info_file << mEventGen->getUntriggeredEventCount() << std::endl;
 }
+
+
+StimuliFocal::~StimuliFocal(){
+  mFocal.reset();
+}

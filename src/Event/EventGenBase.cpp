@@ -1,3 +1,4 @@
+
 /**
  * @file   EventGenBase.cpp
  * @author Simon Voigt Nesbo
@@ -33,7 +34,9 @@ EventGenBase::EventGenBase(sc_core::sc_module_name name,
 
 EventGenBase::~EventGenBase()
 {
-
+  delete mRandClusterSizeDist;
+  delete mRandClusterXDist;
+  delete mRandClusterYDist;
 }
 
 

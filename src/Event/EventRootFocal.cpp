@@ -88,7 +88,6 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
 
 #ifdef ALIROOT_ENABLED	  
     std::cout << "\t...trying to open file " << event_filename.toStdString() << std::endl;
-    mRootFile = new TFile();
     mRootFile = TFile::Open(event_filename.toStdString().c_str(), "READ");
 
     if(mRootFile->IsOpen() == kFALSE || mRootFile->IsZombie() == kTRUE) {
@@ -148,6 +147,10 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
 
 EventRootFocal::~EventRootFocal()
 {
+
+  
+
+
   delete mRandHitMacroCellX;
   delete mRandHitMacroCellY;
   delete mEvent;
@@ -162,6 +165,9 @@ EventRootFocal::~EventRootFocal()
   delete mBranchColS3;
   delete mBranchAmpS3;
   delete mTree;
+  if(mRootFile->IsOpen()){
+    mRootFile->Close();
+  }
   delete mRootFile;
   delete mRandEventIdDist;
 }
@@ -209,7 +215,7 @@ void EventRootFocal::createHitsFromAliFOCALCellCM(double global_cm_x, double glo
       //std::cout <<"Added hit in layer "<<layer<<", chipid " << global_chip_id << ", col "<< chip_col << ", row "<< chip_row << std::endl;
     }
   } else {
-    std::cout << "Invalid hit in layer "<<layer<<":" << global_cm_x << "cm, "<<global_cm_y<<"cm"<<std::endl;
+    //std::cout << "Invalid hit in layer "<<layer<<":" << global_cm_x << "cm, "<<global_cm_y<<"cm"<<std::endl;
   }
 }
 
@@ -264,10 +270,10 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
 
 #ifdef ALIROOT_ENABLED	
 
-  if(mEventDigits != nullptr)
-    delete mEventDigits;
+  //if(mEventDigits != nullptr)
+  //  delete mEventDigits;
 
-  mEventDigits = new EventDigits();
+  EventDigits *event = new EventDigits();
 
   if(mRandomEventOrder)
     mEntryCounter = (*mRandEventIdDist)(mRandEventIdGen);
@@ -278,6 +284,7 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
   mTree = (TTree*) gDirectory->Get("fTreeR");
   
   TClonesArray *afcs = new TClonesArray("AliFOCALCell", C_MAX_HITS);
+  //std::unique_ptr<TClonesArray> afcs  = std::make_unique<TClonesArray>("AliFOCALCell", C_MAX_HITS);
   mTree->SetBranchAddress("AliFOCALCell", &afcs);
   
   mTree->GetEntry(0);
@@ -286,27 +293,29 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
   unsigned int nHits = afcs->GetEntries();
   std::cout<<"...event contains "<<nHits<<" hits"<<std::endl;
   
-  AliFOCALCell *afc = new AliFOCALCell();
+  //AliFOCALCell *afc = new AliFOCALCell();
+  //std::unique_ptr<AliFOCALCell> afc = std::make_unique<AliFOCALCell>();
 
   for(unsigned int i=0;i<nHits;i++){
  
-      afc = (AliFOCALCell*) afcs->At(i);
+      AliFOCALCell *afc = (AliFOCALCell*) afcs->At(i);
       if(afc->Segment()==1){
       	//std::cout << mEntryCounter << ": getting hit " << i << " / " <<nHits << " in segment S" << afc->Segment(); 
-	createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 0, mEventDigits);
-	//std::cout << " ... done " << std::endl;
+	      createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 0, event);
+	      //std::cout << " ... done " << std::endl;
       }
       if(afc->Segment()==3){
       	//std::cout << mEntryCounter << ": getting hit " << i << " / " <<nHits << " in segment S" << afc->Segment(); 
-      	createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 1, mEventDigits);
-	//std::cout << " ... done " << std::endl;
+      	createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 1, event);
+	      //std::cout << " ... done " << std::endl;
       }
+
+      delete afc;
   
   }
   
-  std::cout << "Filled " << mEventDigits->size() << " digits from AliROOT files in both layers" << std::endl;
+  std::cout << "Filled " << event->size() << " digits from AliROOT files in both layers" << std::endl;
   
-  delete afc;
   delete afcs;
 
   mRootFile->cd("../");
@@ -320,9 +329,9 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
     }
   }
 
-  std::cout << "Event size: " << mEventDigits->size() << std::endl;
+  std::cout << "Event size: " << event->size() << std::endl;
 
-  return mEventDigits;
+  return event;
 #else 
   std::cerr << "Error: Trying to generate events from \"" << mEventFileName << "\" wihtout AliROOT support. Exiting." << std::endl;
   exit(-1);

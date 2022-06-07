@@ -622,3 +622,9 @@ void RegionReadoutUnit::addTraces(sc_trace_file *wf, std::string name_prefix) co
 //  addTrace(wf, region_name_prefix, "region_fifo", s_region_fifo);
   addTrace(wf, region_name_prefix, "region_data_out", s_region_data_out);
 }
+
+
+RegionReadoutUnit::~RegionReadoutUnit(){
+  //std::cout << "RegionReadoutUnit: destructor for RU " << mRegionId << "called." << std::endl;
+  delete mPixelMatrix;
+}

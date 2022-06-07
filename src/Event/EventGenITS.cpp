@@ -97,10 +97,12 @@ EventGenITS::~EventGenITS()
     mPhysicsEventsCSVFile.close();
 
   if(mPhysicsEventRootFile->IsOpen()){
+    mPhysicsEventRootFile->cd();
     mPhysicsEventTree->Write();
     mPhysicsEventRootFile->Close();
   }
   delete mPhysicsEventRootFile;
+  delete mFocalEvents;
 }
 
 
@@ -462,6 +464,7 @@ void EventGenITS::fillPhysicsEventRootFile(uint64_t t_delta,
       }
     }
   }
+  mPhysicsEventRootFile->cd();
   mPhysicsEventTree->Fill();
 
 }
@@ -965,6 +968,8 @@ void EventGenITS::generateMonteCarloEventData(uint64_t event_time_ns,
 
     digit_it++;
   }
+
+  delete digits;
 }
 
 

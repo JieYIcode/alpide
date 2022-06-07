@@ -74,3 +74,7 @@ StimuliBase::StimuliBase(sc_core::sc_module_name name,
     throw std::runtime_error(error_msg);
   }
 }
+
+//StimuliBase::~StimuliBase(){
+
+//}

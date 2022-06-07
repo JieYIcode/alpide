@@ -155,6 +155,10 @@ int sc_main(int argc, char** argv)
 
   std::cout << "Simulation complete. Elapsed time: " << diff << std::endl;
 
+  std::cout << "Cleaning stimuli object...";
+  stimuli.reset();
+  std::cout << " done!" << std::endl;
+
   delete simulation_settings;
 
   return 0;

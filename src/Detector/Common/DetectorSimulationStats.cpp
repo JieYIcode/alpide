@@ -210,6 +210,7 @@ void Detector::writeAlpideStatsToFile(std::string output_path,
 
   rootfile->cd();
   alpidetree->Write();
+  alpidetree->Delete();
   rootfile->Delete();
 
 }

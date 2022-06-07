@@ -48,6 +48,7 @@ private:
 public:
   StimuliFocal(sc_core::sc_module_name name, QSettings* settings, std::string output_path);
   void addTraces(sc_trace_file *wf) const;
+  ~StimuliFocal();
 };
 
 

@@ -309,3 +309,7 @@ void FocalDetector::writeSimulationStats(const std::string output_path) const
 
   ///@todo More ITS/RU stats here..
 }
+
+FocalDetector::~FocalDetector(){
+
+}
