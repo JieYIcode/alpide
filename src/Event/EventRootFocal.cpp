@@ -284,8 +284,7 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
 
   mRootFile->cd(Form("Event%lu", mEntryCounter));
   //mTree = (TTree*) gDirectory->Get("fTreeR");
-  TTree *testtree = new TTree();
-  testtree = (TTree*) gDirectory->Get("fTreeR");
+  TTree *testtree = (TTree*) gDirectory->Get("fTreeR");
 
   TClonesArray *afcs = new TClonesArray("AliFOCALCell", C_MAX_HITS);
   //std::unique_ptr<TClonesArray> afcs  = std::make_unique<TClonesArray>("AliFOCALCell", C_MAX_HITS);
