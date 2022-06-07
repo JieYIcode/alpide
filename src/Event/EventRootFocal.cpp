@@ -166,7 +166,7 @@ EventRootFocal::~EventRootFocal()
   delete mBranchColS3;
   delete mBranchAmpS3;
   */
-  delete mTree;
+  //if(mTree!= nullptr)  delete mTree;
   if(mRootFile->IsOpen()){
     mRootFile->Close();
   }
@@ -283,13 +283,15 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
   std::cout << "Getting next aliroot event index " << mEntryCounter << " from " << mRootFile->GetName() << std::endl;
 
   mRootFile->cd(Form("Event%lu", mEntryCounter));
-  mTree = (TTree*) gDirectory->Get("fTreeR");
-  
+  //mTree = (TTree*) gDirectory->Get("fTreeR");
+  TTree *testtree = new TTree();
+  testtree = (TTree*) gDirectory->Get("fTreeR");
+
   TClonesArray *afcs = new TClonesArray("AliFOCALCell", C_MAX_HITS);
   //std::unique_ptr<TClonesArray> afcs  = std::make_unique<TClonesArray>("AliFOCALCell", C_MAX_HITS);
-  mTree->SetBranchAddress("AliFOCALCell", &afcs);
+  testtree->SetBranchAddress("AliFOCALCell", &afcs);
   
-  mTree->GetEntry(0);
+  testtree->GetEntry(0);
 
   //unsigned int nHits = mAliFOCALCells->GetEntriesFast();
   unsigned int nHits = afcs->GetEntries();
@@ -319,6 +321,8 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
   std::cout << "Filled " << event->size() << " digits from AliROOT files in both layers" << std::endl;
   
   delete afcs;
+
+  delete testtree;
 
   mRootFile->cd("../");
 
