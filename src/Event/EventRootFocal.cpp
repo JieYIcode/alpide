@@ -153,7 +153,8 @@ EventRootFocal::~EventRootFocal()
 
   delete mRandHitMacroCellX;
   delete mRandHitMacroCellY;
-  delete mEvent;
+  //delete mEvent;
+  /*
   delete mBranch_iEvent;
   delete mBranch_iFolder;
   delete mBranch_nPixS1;
@@ -164,6 +165,7 @@ EventRootFocal::~EventRootFocal()
   delete mBranchRowS3;
   delete mBranchColS3;
   delete mBranchAmpS3;
+  */
   delete mTree;
   if(mRootFile->IsOpen()){
     mRootFile->Close();
@@ -310,7 +312,7 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
 	      //std::cout << " ... done " << std::endl;
       }
 
-      delete afc;
+      //delete afc;
   
   }
   
