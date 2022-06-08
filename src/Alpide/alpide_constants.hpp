@@ -34,9 +34,12 @@
 
 #define LHC_ORBIT_BUNCH_COUNT 3564
 
-#define CHIP_WIDTH_CM 3
-#define CHIP_HEIGHT_CM 1.5
+//#define CHIP_WIDTH_CM 3
+//#define CHIP_HEIGHT_CM 1.5
 
+//define here the more realistic values with the correct pixel size.
+#define CHIP_WIDTH_CM 1024*29.24/1000
+#define CHIP_HEIGHT_CM 512*28.88/1000
 
 #endif
 ///@}
