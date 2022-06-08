@@ -38,8 +38,10 @@
 //#define CHIP_HEIGHT_CM 1.5
 
 //define here the more realistic values with the correct pixel size.
-#define CHIP_WIDTH_CM 1024*29.24/1000
-#define CHIP_HEIGHT_CM 512*28.88/1000
+#define CHIP_WIDTH_MM (1024*29.24/1000)
+#define CHIP_HEIGHT_MM (512*26.88/1000)
+#define CHIP_WIDTH_CM (CHIP_WIDTH_MM/10.)
+#define CHIP_HEIGHT_CM (CHIP_WIDTH_MM/10.)
 
 #endif
 ///@}
