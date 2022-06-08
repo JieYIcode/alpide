@@ -237,7 +237,7 @@ void EventRootFocal::createHitsFromAliFOCALCellCM(double global_cm_x, double glo
       //std::cout <<"Added hit in layer "<<layer<<", chipid " << global_chip_id << ", col "<< chip_col << ", row "<< chip_row << std::endl;
     }
   } else {
-    //std::cout << "Invalid hit in layer "<<layer<<":" << global_cm_x << "cm, "<<global_cm_y<<"cm"<<std::endl;
+    std::cout << "Invalid hit in layer "<<layer<<":" << global_cm_x << "cm, "<<global_cm_y<<"cm"<<std::endl;
     mInvalidX = global_cm_x;
     mInvalidY = global_cm_y;
     mInvalidChipId = global_chip_id;
@@ -554,6 +554,7 @@ bool global_cm_coords_to_chip_coords(const double global_cm_x, const double glob
 
   unsigned int quadrant;
 
+  
   if(macro_cell_x_mm > 0 && macro_cell_y_mm > 0) {
     quadrant = 0;
   } else if(macro_cell_x_mm < 0 && macro_cell_y_mm > 0) {
@@ -564,16 +565,33 @@ bool global_cm_coords_to_chip_coords(const double global_cm_x, const double glob
     quadrant = 3;
   }
 
-  macro_cell_x_mm = abs(macro_cell_x_mm);
   macro_cell_y_mm = abs(macro_cell_y_mm);
+  macro_cell_x_mm = abs(macro_cell_x_mm);
+
+  //skip hits between the two focal half-shells
+  //add for each quadrant the Focal::SHIFT_X_MM to
+  //the macro_cell_x_mm in order to account for the 
+  //gap between the two Focal half-shells
+  if(macro_cell_x_mm<Focal::SHIFT_X_MM){
+    return false;
+  } else{
+    macro_cell_x_mm -= Focal::SHIFT_X_MM;
+    // Just in case the value ended up being a "slightly negative zero"
+    // in case of some floating point gremlins
+    if(macro_cell_x_mm<0){
+      macro_cell_x_mm=0;
+    }
+  }
 
   // Skip hits that fall inside the gap (though the data set shouldn't really include hits there..)
-  if( (abs(macro_cell_x_mm) < Focal::GAP_SIZE_X_MM/2) &&  (abs(macro_cell_y_mm) < Focal::GAP_SIZE_Y_MM/2) )
+  if( (abs(macro_cell_x_mm) < Focal::GAP_SIZE_X_MM/2) &&  (abs(macro_cell_y_mm) < Focal::GAP_SIZE_Y_MM/2) ){
     return false;
+  }
 
   // Skip hit if its y-coord falls above or beyond detector plane
-  if(macro_cell_y_mm > Focal::STAVES_PER_QUADRANT*Focal::STAVE_SIZE_Y_MM)
+  if(macro_cell_y_mm > Focal::STAVES_PER_QUADRANT*Focal::STAVE_SIZE_Y_MM){
     return false;
+  }
 
   // If the hit is in one of the two patches to the right or left of the gap,
   // then subtract the half gap size to "align" them with the rest of the patches,
@@ -588,14 +606,16 @@ bool global_cm_coords_to_chip_coords(const double global_cm_x, const double glob
   }
 
   // Skip hit if its x-coord falls outside the detector plane
-  if(macro_cell_x_mm > Focal::STAVE_SIZE_X_MM)
+  if(macro_cell_x_mm > Focal::STAVE_SIZE_X_MM){
     return false;
+  }
 
   unsigned int stave_num_in_quadrant = macro_cell_y_mm / Focal::STAVE_SIZE_Y_MM;
 
   // Skip stave if it is not included in the simulation
-  if(stave_num_in_quadrant >= staves_per_quadrant)
+  if(stave_num_in_quadrant >= staves_per_quadrant){
     return false;
+  }
 
   double stave_y_mm = macro_cell_y_mm - stave_num_in_quadrant*Focal::STAVE_SIZE_Y_MM;
   double stave_x_mm = macro_cell_x_mm;

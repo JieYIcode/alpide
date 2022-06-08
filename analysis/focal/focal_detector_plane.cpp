@@ -31,13 +31,13 @@ void create_focal_chip_bins(TH2Poly* th2)
           double x_high = x_low+chip_size_x_mm;
 
           if(quadrant == 1) {
-            th2->AddBin(x_low, y_low, x_high, y_high);
+            th2->AddBin(x_low+Focal::SHIFT_X_MM, y_low, x_high+Focal::SHIFT_X_MM, y_high);
           } else if(quadrant == 2) {
-            th2->AddBin(-x_low, y_low, -x_high, y_high);
+            th2->AddBin(-x_low-Focal::SHIFT_X_MM, y_low, -x_high-Focal::SHIFT_X_MM, y_high);
           } else if(quadrant == 3) {
-            th2->AddBin(-x_low, -y_low, -x_high, -y_high);
+            th2->AddBin(-x_low-Focal::SHIFT_X_MM, -y_low, -x_high-Focal::SHIFT_X_MM, -y_high);
           } else {
-            th2->AddBin(x_low, -y_low, x_high, -y_high);
+            th2->AddBin(x_low+Focal::SHIFT_X_MM, -y_low, x_high+Focal::SHIFT_X_MM, -y_high);
           }
         }
       }
