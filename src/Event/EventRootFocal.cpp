@@ -51,6 +51,7 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
                                bool aliroot,
                                unsigned int staves_per_quadrant,
                                unsigned int random_seed,
+                               std::string _outputpath,
                                bool random_event_order)
   : mConfig(config)
   , mGlobalChipIdToPositionFunc(global_chip_id_to_position_func)
@@ -59,6 +60,7 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
   , mRandomEventOrder(random_event_order)
   , mStavesPerQuadrant(staves_per_quadrant)	
   , mAliROOT(aliroot)
+  , mOutputPath(_outputpath)
 {
 
   std::cout <<"Constructing EventRootFocal object "<<std::endl;	
@@ -82,7 +84,14 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
   mRandHitMacroCellX = new uniform_real_distribution<double>(0, Focal::MACRO_CELL_SIZE_X_MM);
   mRandHitMacroCellY = new uniform_real_distribution<double>(0, Focal::MACRO_CELL_SIZE_Y_MM);
 
-
+  mInvalidHitsFile = new TFile(Form("%s/InvalidHits.root", mOutputPath.c_str()), "RECREATE");
+  mInvalidHitsFile->cd();
+  mInvalidHitsTree = new TTree("treeInvalidHits", "treeInvalidHits");
+  mInvalidHitsTree->SetMaxTreeSize(0x10000000);
+  mInvalidHitsTree->Branch("invalidX", &mInvalidX);
+  mInvalidHitsTree->Branch("invalidY", &mInvalidY);
+  mInvalidHitsTree->Branch("invalidChipId", &mInvalidChipId);
+  mInvalidHitsTree->Branch("invalidLayer", &mInvalidLayer);
 
   if(mAliROOT){
 
@@ -100,6 +109,9 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
 
     mNumEntries = mRootFile->GetListOfKeys()->GetEntries(); 
     std::cout << "\t...found " << mNumEntries << " entries"<< std::endl; 
+
+    mTCA = new TClonesArray("AliFOCALCell", C_MAX_HITS);
+
     
 #endif    
 
@@ -109,19 +121,19 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
 
     mRootFile = new TFile();
     mRootFile = TFile::Open(event_filename.toStdString().c_str(), "READ");
-    mTree = (TTree*)mRootFile->Get("pixTree");
+    mEventTree = (TTree*)mRootFile->Get("pixTree");
 
-    mBranch_iEvent = mTree->GetBranch("iEvent");
-    mBranch_iFolder = mTree->GetBranch("iFolder");
-    mBranch_nPixS1 = mTree->GetBranch("nPixS1");
-    mBranch_nPixS3 = mTree->GetBranch("nPixS3");
+    mBranch_iEvent = mEventTree->GetBranch("iEvent");
+    mBranch_iFolder = mEventTree->GetBranch("iFolder");
+    mBranch_nPixS1 = mEventTree->GetBranch("nPixS1");
+    mBranch_nPixS3 = mEventTree->GetBranch("nPixS3");
 
-    mBranchRowS1 = mTree->GetBranch("rowS1");
-    mBranchColS1 = mTree->GetBranch("colS1");
-    mBranchAmpS1 = mTree->GetBranch("ampS1");
-    mBranchRowS3 = mTree->GetBranch("rowS3");
-    mBranchColS3 = mTree->GetBranch("colS3");
-    mBranchAmpS3 = mTree->GetBranch("ampS3");
+    mBranchRowS1 = mEventTree->GetBranch("rowS1");
+    mBranchColS1 = mEventTree->GetBranch("colS1");
+    mBranchAmpS1 = mEventTree->GetBranch("ampS1");
+    mBranchRowS3 = mEventTree->GetBranch("rowS3");
+    mBranchColS3 = mEventTree->GetBranch("colS3");
+    mBranchAmpS3 = mEventTree->GetBranch("ampS3");
 
     mBranch_iEvent->SetAddress(&mEvent->iEvent);
     mBranch_iFolder->SetAddress(&mEvent->iFolder);
@@ -134,7 +146,7 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
     mBranchColS3->SetAddress(&mEvent->colS3);
     mBranchAmpS3->SetAddress(&mEvent->ampS3);
 
-    mNumEntries = mTree->GetEntries();
+    mNumEntries = mEventTree->GetEntries();
 
   }
 
@@ -148,7 +160,12 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
 EventRootFocal::~EventRootFocal()
 {
 
-  
+  std::cout << "EventRootFocal destructor called... ";
+
+  mInvalidHitsFile->cd();
+  mInvalidHitsTree->Write();
+  delete mInvalidHitsTree;
+  delete mInvalidHitsFile;
 
 
   delete mRandHitMacroCellX;
@@ -166,12 +183,15 @@ EventRootFocal::~EventRootFocal()
   delete mBranchColS3;
   delete mBranchAmpS3;
   */
-  //if(mTree!= nullptr)  delete mTree;
+  //delete mEventTree;
   if(mRootFile->IsOpen()){
     mRootFile->Close();
   }
   delete mRootFile;
+  delete mTCA;
   delete mRandEventIdDist;
+
+  std::cout << "finished." << std::endl;
 }
 
 ///@brief Create a number of pixel hits for ALPIDE chips, based on number of hits within a
@@ -218,6 +238,11 @@ void EventRootFocal::createHitsFromAliFOCALCellCM(double global_cm_x, double glo
     }
   } else {
     //std::cout << "Invalid hit in layer "<<layer<<":" << global_cm_x << "cm, "<<global_cm_y<<"cm"<<std::endl;
+    mInvalidX = global_cm_x;
+    mInvalidY = global_cm_y;
+    mInvalidChipId = global_chip_id;
+    mInvalidLayer = layer;
+    mInvalidHitsTree->Fill();
   }
 }
 
@@ -283,17 +308,17 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
   std::cout << "Getting next aliroot event index " << mEntryCounter << " from " << mRootFile->GetName() << std::endl;
 
   mRootFile->cd(Form("Event%lu", mEntryCounter));
-  //mTree = (TTree*) gDirectory->Get("fTreeR");
-  TTree *testtree = (TTree*) gDirectory->Get("fTreeR");
+  //mEventTree = (TTree*) gDirectory->Get("fTreeR");
+  TTree *thisEventTree = (TTree*) gDirectory->Get("fTreeR");
 
-  TClonesArray *afcs = new TClonesArray("AliFOCALCell", C_MAX_HITS);
+  //TClonesArray *afcs = new TClonesArray("AliFOCALCell", C_MAX_HITS);
   //std::unique_ptr<TClonesArray> afcs  = std::make_unique<TClonesArray>("AliFOCALCell", C_MAX_HITS);
-  testtree->SetBranchAddress("AliFOCALCell", &afcs);
+  thisEventTree->SetBranchAddress("AliFOCALCell", &mTCA);
   
-  testtree->GetEntry(0);
+  thisEventTree->GetEntry(0);
 
   //unsigned int nHits = mAliFOCALCells->GetEntriesFast();
-  unsigned int nHits = afcs->GetEntries();
+  unsigned int nHits = mTCA->GetEntries();
   std::cout<<"...event contains "<<nHits<<" hits"<<std::endl;
   
   //AliFOCALCell *afc = new AliFOCALCell();
@@ -301,7 +326,7 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
 
   for(unsigned int i=0;i<nHits;i++){
  
-      AliFOCALCell *afc = (AliFOCALCell*) afcs->At(i);
+      AliFOCALCell *afc = (AliFOCALCell*) mTCA->At(i);
       if(afc->Segment()==1){
       	//std::cout << mEntryCounter << ": getting hit " << i << " / " <<nHits << " in segment S" << afc->Segment(); 
 	      createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 0, event);
@@ -319,9 +344,10 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
   
   std::cout << "Filled " << event->size() << " digits from AliROOT files in both layers" << std::endl;
   
-  delete afcs;
+  mTCA->Clear();
+  //mEventTree->Reset();
 
-  delete testtree;
+  delete thisEventTree;
 
   mRootFile->cd("../");
 

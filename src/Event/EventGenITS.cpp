@@ -268,6 +268,7 @@ void EventGenITS::initMonteCarloHitGen(const QSettings* settings)
                                       (monte_carlo_file_type == "aliroot"),
 				      mDetectorConfig.staves_per_quadrant,
                                       random_seed,
+                                      mOutputPath,
 				      false);
     std::cout << "... started." << std::endl;
 #elif !ALIROOT_ENABLED && ROOT_ENABLED

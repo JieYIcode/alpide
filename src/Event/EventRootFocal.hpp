@@ -59,7 +59,17 @@ private:
   Detector::t_position_to_global_chip_id_func mPositionToGlobalChipIdFunc;
 
   TFile* mRootFile;
-  TTree* mTree;
+  TTree* mEventTree;
+  TClonesArray *mTCA;
+
+  TFile* mInvalidHitsFile;
+  TTree* mInvalidHitsTree;
+  std::string mOutputPath;
+  double mInvalidX;
+  double mInvalidY;
+  int mInvalidChipId;
+  int mInvalidLayer;
+
 
   TBranch *mBranch_iEvent;
   TBranch *mBranch_iFolder;
@@ -73,7 +83,6 @@ private:
   TBranch *mBranchColS3;
   TBranch *mBranchAmpS3;
 
-  TClonesArray *mAliFOCALCells;
 
   MacroPixelEvent* mEvent;
 
@@ -89,7 +98,7 @@ private:
   /// Number of staves per quadrant included in the simulation
   const unsigned int mStavesPerQuadrant;
 
-  bool mAliROOT = 0; //indicates if the given ROOT file is an aliroot file from 2022 or later
+  bool mAliROOT; //indicates if the given ROOT file is an aliroot file from 2022 or later
 
   boost::random::mt19937 mRandHitGen;
   boost::random::uniform_real_distribution<double> *mRandHitMacroCellX, *mRandHitMacroCellY;
@@ -110,6 +119,7 @@ public:
                  bool aliroot,
                  unsigned int staves_per_quadrant,
                  unsigned int random_seed,
+                 std::string _outpath,
                  bool random_event_order = true
 );
   ~EventRootFocal();
@@ -122,6 +132,7 @@ public:
 
   void enableAliROOT();
   void disableAliROOT();
+
 
 
 };
