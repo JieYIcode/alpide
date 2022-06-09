@@ -14,20 +14,7 @@
 namespace Focal {
   static const unsigned int N_LAYERS = 2;
 
-  static const double MACRO_CELL_SIZE_X_MM = 0.5;
-  static const double MACRO_CELL_SIZE_Y_MM = 0.5;
-
-  static const double GAP_SIZE_X_MM = 80;
-  static const double GAP_SIZE_Y_MM = 80;
-
-  static const double GAP_SIZE_X_CELLS = GAP_SIZE_X_MM/MACRO_CELL_SIZE_X_MM;
-  static const double GAP_SIZE_Y_CELLS = GAP_SIZE_Y_MM/MACRO_CELL_SIZE_Y_MM;
-
-  static const double SHIFT_X_MM = 12;
-  static const double SHIFT_Y_MM = 0;
   
-  static const double SHIFT_X_CELLS = SHIFT_X_MM/MACRO_CELL_SIZE_X_MM;
-  static const double SHIFT_Y_CELLS = SHIFT_Y_MM/MACRO_CELL_SIZE_Y_MM;
 
   // Inner Stave structure: <Module 0><Module 1>
   // Module 0: 8x IB chips
@@ -77,6 +64,23 @@ namespace Focal {
 
   static const double HALF_PATCH_SIZE_X_MM = PATCH_SIZE_X_MM;
   static const double HALF_PATCH_SIZE_Y_MM = PATCH_SIZE_Y_MM/2;
+
+
+// some dimensions for adjusting for the beam pipe gap
+  static const double MACRO_CELL_SIZE_X_MM = 0.5;
+  static const double MACRO_CELL_SIZE_Y_MM = 0.5;
+
+  static const double GAP_SIZE_X_MM = 50;
+  static const double GAP_SIZE_Y_MM = PATCH_SIZE_Y_MM;
+
+  static const double GAP_SIZE_X_CELLS = GAP_SIZE_X_MM/MACRO_CELL_SIZE_X_MM;
+  static const double GAP_SIZE_Y_CELLS = GAP_SIZE_Y_MM/MACRO_CELL_SIZE_Y_MM;
+
+  static const double SHIFT_X_MM = 12;
+  static const double SHIFT_Y_MM = 0;
+  
+  static const double SHIFT_X_CELLS = SHIFT_X_MM/MACRO_CELL_SIZE_X_MM;
+  static const double SHIFT_Y_CELLS = SHIFT_Y_MM/MACRO_CELL_SIZE_Y_MM;
 }
 
 #endif
