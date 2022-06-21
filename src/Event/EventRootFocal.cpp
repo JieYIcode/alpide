@@ -192,7 +192,7 @@ EventRootFocal::~EventRootFocal()
   delete mTCA;
   delete mRandEventIdDist;
 
-  std::cout << "finished." << std::endl;
+  std::cout << "EventRootFocal destructor finished." << std::endl;
 }
 
 ///@brief Create a number of pixel hits for ALPIDE chips, based on number of hits within a
@@ -244,7 +244,7 @@ void EventRootFocal::createHitsFromAliFOCALCellCM(double global_cm_x, double glo
       mHitsTree->Fill();
     }
   } else {
-    std::cout << "OBS: invalid hit in layer "<<layer<<":" << global_cm_x << "cm, "<<global_cm_y<<"cm"<<std::endl;
+    //std::cout << "OBS: invalid hit in layer "<<layer<<":" << global_cm_x << "cm, "<<global_cm_y<<"cm"<<std::endl;
     mX = global_cm_x;
     mY = global_cm_y;
     mChipId = global_chip_id;

@@ -27,6 +27,11 @@
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/normal_distribution.hpp>
 
+#ifdef ROOT_ENABLED
+#include "TFile.h"
+#include "TH1.h"
+#endif
+
 using std::uint64_t;
 
 class EventGenBase : public sc_core::sc_module
@@ -63,9 +68,17 @@ protected:
   int mRandomSeed;
   bool mRandomHitGeneration;
   bool mRandomClusterGeneration;
+  bool mRandomClusterFile;
+  std::string mRandomClusterFileName;
+  std::string mRandomClusterHistogramName;
   bool mSingleChipSimulation = false;
   bool mStopEventGeneration = false;
   bool mQedNoiseGenEnable = false;
+
+#ifdef ROOT_ENABLED
+  TFile *mClusterFile;
+  TH1D *mClusterH;
+#endif  
 
   uint64_t mQedNoiseFeedRateNs = 0;
   uint64_t mQedNoiseEventRateNs = 0;
