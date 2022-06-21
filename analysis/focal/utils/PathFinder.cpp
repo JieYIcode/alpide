@@ -8,6 +8,7 @@ void PathFinder(std::string dirname, std::string head, std::string ext, std::vec
     dirname+="/";
     TSystemDirectory dir(dirname.c_str(), dirname.c_str());
     TList *files = dir.GetListOfFiles();
+    //std::cout << "Looking for " << dirname << "/" << head << "*"<<ext << " files in a list " << files->GetEntries() << " files" << std::endl;
     if (files) { 
         TSystemFile *file;
         TString fname; 

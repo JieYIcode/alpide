@@ -327,6 +327,7 @@ int main(int argc, char** argv)
   
   unsigned int staves_per_quadrant=33;
   
+  float scale = 1./focalpaths.size();
 
   for(std::string path:focalpaths){
     std::string infopath=path;
@@ -343,11 +344,21 @@ int main(int argc, char** argv)
     staves_per_quadrant = sim_settings->value("focal/staves_per_quadrant").toUInt();
 
     TFile *focalfile = new TFile(path.c_str(), "READ");
+  
+    writefile->cd();
 
-    h1_data->Add((TH2Poly*) focalfile->Get("h1_data"), 1);
-    h3_data->Add((TH2Poly*) focalfile->Get("h3_data"), 1);
-    h1_pixels_avg->Add((TH2Poly*) focalfile->Get("h1_pixels_avg"), 1);
-    h3_pixels_avg->Add((TH2Poly*) focalfile->Get("h3_pixels_avg"), 1);
+    h1_data->Add((TH2Poly*) focalfile->Get("h1_data")->Clone(), scale);
+    h3_data->Add((TH2Poly*) focalfile->Get("h3_data")->Clone(), scale);
+    h1_pixels_avg->Add((TH2Poly*) focalfile->Get("h1_pixels_avg")->Clone(), scale);
+    h3_pixels_avg->Add((TH2Poly*) focalfile->Get("h3_pixels_avg")->Clone(), scale);
+    h1_busy_avg->Add((TH2Poly*) focalfile->Get("h1_busy_avg")->Clone(), scale);
+    h3_busy_avg->Add((TH2Poly*) focalfile->Get("h3_busy_avg")->Clone(), scale);
+    h1_busyv_avg->Add((TH2Poly*) focalfile->Get("h1_busyv_avg")->Clone(), scale);
+    h3_busyv_avg->Add((TH2Poly*) focalfile->Get("h3_busyv_avg")->Clone(), scale);
+    h1_frame_loss->Add((TH2Poly*) focalfile->Get("h1_frame_loss")->Clone(), scale);
+    h3_frame_loss->Add((TH2Poly*) focalfile->Get("h3_frame_loss")->Clone(), scale);
+    h1_frame_efficiency->Add((TH2Poly*) focalfile->Get("h1_frame_efficiency")->Clone(), scale);
+    h3_frame_efficiency->Add((TH2Poly*) focalfile->Get("h3_frame_efficiency")->Clone(), scale);
 
     focalfile->Close();
     focalfile->Delete();
@@ -356,10 +367,10 @@ int main(int argc, char** argv)
   writefile->cd();
 
   //Scale histograms which have to be sclaed after adding
-  h1_data->Scale(1./focalpaths.size());
-  h3_data->Scale(1./focalpaths.size());
-  h1_pixels_avg->Scale(1./focalpaths.size());
-  h3_pixels_avg->Scale(1./focalpaths.size());
+  //h1_data->Scale(1./focalpaths.size());
+  //h3_data->Scale(1./focalpaths.size());
+  //h1_pixels_avg->Scale(1./focalpaths.size());
+  //h3_pixels_avg->Scale(1./focalpaths.size());
 
   c1->SetRightMargin(0.2);
   c1->Update();
