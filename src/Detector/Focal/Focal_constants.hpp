@@ -57,20 +57,20 @@ namespace Focal {
   static const unsigned int DATA_LINKS_PER_OUTER_STAVE = 3;
 
   static const double STAVE_SIZE_X_MM = (CHIP_WIDTH_CM*10) * CHIPS_PER_STAVE;
-  static const double STAVE_SIZE_Y_MM = CHIP_HEIGHT_CM*10;
+  static const double STAVE_SIZE_Y_MM = (CHIP_HEIGHT_CM*10);
 
   static const double PATCH_SIZE_X_MM = STAVE_SIZE_X_MM;
   static const double PATCH_SIZE_Y_MM = STAVE_SIZE_Y_MM*STAVES_PER_PATCH;
 
   static const double HALF_PATCH_SIZE_X_MM = PATCH_SIZE_X_MM;
-  static const double HALF_PATCH_SIZE_Y_MM = PATCH_SIZE_Y_MM/2;
+  static const double HALF_PATCH_SIZE_Y_MM = PATCH_SIZE_Y_MM/2.;
 
 
 // some dimensions for adjusting for the beam pipe gap
   static const double MACRO_CELL_SIZE_X_MM = 0.5;
   static const double MACRO_CELL_SIZE_Y_MM = 0.5;
 
-  static const double GAP_SIZE_X_MM = 50;
+  static const double GAP_SIZE_X_MM = 100;
   static const double GAP_SIZE_Y_MM = PATCH_SIZE_Y_MM;
 
   static const double GAP_SIZE_X_CELLS = GAP_SIZE_X_MM/MACRO_CELL_SIZE_X_MM;

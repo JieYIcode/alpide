@@ -62,13 +62,14 @@ private:
   TTree* mEventTree;
   TClonesArray *mTCA;
 
-  TFile* mInvalidHitsFile;
-  TTree* mInvalidHitsTree;
+  TFile* mHitsFile;
+  TTree* mHitsTree;
   std::string mOutputPath;
-  double mInvalidX;
-  double mInvalidY;
-  int mInvalidChipId;
-  int mInvalidLayer;
+  double mX;
+  double mY;
+  int mChipId;
+  int mLayer;
+  bool mHitValid;
 
 
   TBranch *mBranch_iEvent;

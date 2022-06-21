@@ -84,14 +84,15 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
   mRandHitMacroCellX = new uniform_real_distribution<double>(0, Focal::MACRO_CELL_SIZE_X_MM);
   mRandHitMacroCellY = new uniform_real_distribution<double>(0, Focal::MACRO_CELL_SIZE_Y_MM);
 
-  mInvalidHitsFile = new TFile(Form("%s/InvalidHits.root", mOutputPath.c_str()), "RECREATE");
-  mInvalidHitsFile->cd();
-  mInvalidHitsTree = new TTree("treeInvalidHits", "treeInvalidHits");
-  mInvalidHitsTree->SetMaxTreeSize(0x10000000);
-  mInvalidHitsTree->Branch("invalidX", &mInvalidX);
-  mInvalidHitsTree->Branch("invalidY", &mInvalidY);
-  mInvalidHitsTree->Branch("invalidChipId", &mInvalidChipId);
-  mInvalidHitsTree->Branch("invalidLayer", &mInvalidLayer);
+  mHitsFile = new TFile(Form("%s/Hits.root", mOutputPath.c_str()), "RECREATE");
+  mHitsFile->cd();
+  mHitsTree = new TTree("treeHits", "treeHits");
+  mHitsTree->SetMaxTreeSize(0x10000000);
+  mHitsTree->Branch("X", &mX);
+  mHitsTree->Branch("Y", &mY);
+  mHitsTree->Branch("chipId", &mChipId);
+  mHitsTree->Branch("layer", &mLayer);
+  mHitsTree->Branch("valid", &mHitValid);
 
   if(mAliROOT){
 
@@ -162,10 +163,10 @@ EventRootFocal::~EventRootFocal()
 
   std::cout << "EventRootFocal destructor called... ";
 
-  mInvalidHitsFile->cd();
-  mInvalidHitsTree->Write();
-  delete mInvalidHitsTree;
-  delete mInvalidHitsFile;
+  mHitsFile->cd();
+  mHitsTree->Write();
+  delete mHitsTree;
+  delete mHitsFile;
 
 
   delete mRandHitMacroCellX;
@@ -235,14 +236,21 @@ void EventRootFocal::createHitsFromAliFOCALCellCM(double global_cm_x, double glo
 
       event->addHit(chip_col, chip_row, global_chip_id);
       //std::cout <<"Added hit in layer "<<layer<<", chipid " << global_chip_id << ", col "<< chip_col << ", row "<< chip_row << std::endl;
+      mX = global_cm_x;
+      mY = global_cm_y;
+      mChipId = global_chip_id;
+      mLayer = layer;
+      mHitValid = true;
+      mHitsTree->Fill();
     }
   } else {
-    std::cout << "Invalid hit in layer "<<layer<<":" << global_cm_x << "cm, "<<global_cm_y<<"cm"<<std::endl;
-    mInvalidX = global_cm_x;
-    mInvalidY = global_cm_y;
-    mInvalidChipId = global_chip_id;
-    mInvalidLayer = layer;
-    mInvalidHitsTree->Fill();
+    std::cout << "OBS: invalid hit in layer "<<layer<<":" << global_cm_x << "cm, "<<global_cm_y<<"cm"<<std::endl;
+    mX = global_cm_x;
+    mY = global_cm_y;
+    mChipId = global_chip_id;
+    mLayer = layer;
+    mHitValid = false;
+    mHitsTree->Fill();
   }
 }
 
@@ -329,13 +337,13 @@ EventDigits* EventRootFocal::getNextAliROOTEvent(void){
       AliFOCALCell *afc = (AliFOCALCell*) mTCA->At(i);
       if(afc->Segment()==1){
       	//std::cout << mEntryCounter << ": getting hit " << i << " / " <<nHits << " in segment S" << afc->Segment(); 
-	      createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 0, event);
-	      //std::cout << " ... done " << std::endl;
+	createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 0, event);
+	//std::cout << " ... done " << std::endl;
       }
       if(afc->Segment()==3){
       	//std::cout << mEntryCounter << ": getting hit " << i << " / " <<nHits << " in segment S" << afc->Segment(); 
       	createHitsFromAliFOCALCellCM(afc->X(), afc->Y(), 1, 1, event);
-	      //std::cout << " ... done " << std::endl;
+	//std::cout << " ... done " << std::endl;
       }
 
       //delete afc;
