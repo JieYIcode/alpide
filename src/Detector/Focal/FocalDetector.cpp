@@ -109,6 +109,7 @@ void FocalDetector::buildDetector(const FocalDetectorConfig& config,
     for(unsigned int sta_id = 0; sta_id < config.layer[lay_id].num_staves; sta_id++) {
       // Connect the busy in/out signals for the RUs in a daisy chain
       // ------------------------------------------------------------
+      std::cout << "Connecting busy links for Stave ID " << sta_id << std::endl; 
       if(sta_id == num_staves-1) {
         // Connect busy input of first RU to busy output of last RU.
         // If only 1 stave/RU was specified, this will actually connect
@@ -165,6 +166,10 @@ void FocalDetector::buildDetector(const FocalDetectorConfig& config,
           RU.s_serial_data_input[link_num](new_chips[link_num]->s_serial_data_out_exp);
           RU.s_serial_data_trig_id[link_num](new_chips[link_num]->s_serial_data_trig_id_exp);
         } else {
+
+          // Error? We should never get here for FoCal...
+          std::cout << "ERROR: accessing Focal layer " << lay_id << std::endl;
+
           // Outer Barrel. Only master chips have data links to RU
           if(new_chips.size() != stave.numDataLinks()*7) {
             throw std::runtime_error("OB stave created with incorrect number of chips.");
@@ -189,6 +194,8 @@ void FocalDetector::buildDetector(const FocalDetectorConfig& config,
         mChipMap[chip_id] = *chip_it;
         mNumChips++;
       }
+
+      std::cout << "Created " << mChipMap.size() << " chips in layer " << lay_id  <<"."<< std::endl;
     }
   }
 }
@@ -261,10 +268,17 @@ void FocalDetector::triggerMethod(void)
   std::cout << "@ " << time_now << " ns: \tFocal Detector triggered!" << std::endl;
 
   for(unsigned int i = 0; i < N_LAYERS; i++) {
+     std::cout << "\tPreparing for triggering " << mReadoutUnits[i].size() << " RUs in layer " << i << std::endl;
+  }
+
+  for(unsigned int i = 0; i < N_LAYERS; i++) {
     for(auto RU = mReadoutUnits[i].begin(); RU != mReadoutUnits[i].end(); RU++) {
+      std::cout << "\t...triggered RU " << RU->basename() << " with " << RU->numDataLinks()  << " datalinks and "<<RU->numCtrlLinks() << " control links" << std::endl;
       RU->E_trigger_in.notify(SC_ZERO_TIME);
     }
   }
+
+  std::cout << "Finished triggering FOCAL detector." << std::endl;
 }
 
 

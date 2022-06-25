@@ -96,7 +96,7 @@ EventGenBase::createCluster(const PixelHit& pix,
     cluster_size = 1;
   }
 
-  std::cout << "Cluster size: " << cluster_size << std::endl;
+  //std::cout << "Cluster size: " << cluster_size << std::endl;
 
   //std::vector<std::shared_ptr<PixelHit>> pixel_cluster(cluster_size);
   std::vector<std::shared_ptr<PixelHit>> pixel_cluster;
@@ -114,7 +114,7 @@ EventGenBase::createCluster(const PixelHit& pix,
   // and is already added to the vector
   for(int i = 1; i < cluster_size; i++) {
     do {
-      std::cout << i << std::endl;
+      //std::cout << i << std::endl;
       pixel_already_in_cluster = false;
       skip_pixel_outside_matrix = false;
 

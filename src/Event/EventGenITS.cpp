@@ -444,10 +444,11 @@ void EventGenITS::initPhysicsEventRootFile(const QSettings *settings){
 
 #endif
 
-void EventGenITS::fillPhysicsEventRootFile(uint64_t t_delta,
+void EventGenITS::fillPhysicsEventRootFile(uint64_t t_now, uint64_t t_delta,
                                   unsigned int event_pixel_hit_count,
                                   std::map<unsigned int, unsigned int> &chip_hits,
                                   std::map<unsigned int, unsigned int> &layer_hits){
+  mPhysicsEventData.tNow = t_now;
   mPhysicsEventData.tDelta = t_delta;
   mPhysicsEventData.globalNHits = event_pixel_hit_count;
   mPhysicsEventData.globalNHitsLayer0 = layer_hits[0];
@@ -1012,7 +1013,7 @@ uint64_t EventGenITS::generateNextPhysicsEvent(void)
   // Write event rate and multiplicity numbers to CSV file
   if(mCreateCSVFile){
     addCsvEventLine(t_delta, event_pixel_hit_count, chip_hits, layer_hits);
-    fillPhysicsEventRootFile(t_delta, event_pixel_hit_count, chip_hits, layer_hits);
+    fillPhysicsEventRootFile(time_now, t_delta, event_pixel_hit_count, chip_hits, layer_hits);
   }
 
   if(mTriggeredEventCount % 100 == 0) {

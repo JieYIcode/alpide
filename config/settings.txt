@@ -27,7 +27,10 @@ qed_noise_feed_rate_ns=5000
 qed_noise_input=false
 qed_noise_path=config/monte_carlo_events/pp
 qed_noise_rate_ns=250
+random_cluster_file=true
+random_cluster_filename=/home/mxr/dev/cern/alpide_systemc/config/out.root
 random_cluster_generation=true
+random_cluster_histogramname=hClusterSize
 random_cluster_size_mean=4
 random_cluster_size_stddev=1
 random_hit_generation=false
@@ -38,7 +41,7 @@ trigger_filter_enable=true
 trigger_filter_time_ns=1230
 
 [focal]
-monte_carlo_file_path=/software/max/alice/work/clusters_test/clusters_test_test_1.root
+monte_carlo_file_path=/home/mxr/data/focal_sim/clusters_test_test_1.root
 staves_per_quadrant=33
 
 [its]
@@ -77,7 +80,7 @@ random_particles_per_s_stddev=0.5E9
 time_frame_length_ns=10000
 
 [simulation]
-n_events=500
+n_events=10
 random_seed=0
 single_chip=false
 system_continuous_mode=true

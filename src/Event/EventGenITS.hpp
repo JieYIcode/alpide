@@ -23,6 +23,7 @@
 
 typedef struct {
 
+  ULong64_t tNow;
   Int_t tDelta;
 
   Int_t globalNHits;
@@ -105,7 +106,7 @@ private:
   TTree *mPhysicsEventTree;
   TFile *mPhysicsEventRootFile;
   void initPhysicsEventRootFile(const QSettings *settings);
-  void fillPhysicsEventRootFile(uint64_t t_delta,
+  void fillPhysicsEventRootFile(uint64_t time_now, uint64_t t_delta,
                                   unsigned int event_pixel_hit_count,
                                   std::map<unsigned int, unsigned int> &chip_hits,
                                   std::map<unsigned int, unsigned int> &layer_hits);

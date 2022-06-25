@@ -172,6 +172,9 @@ void Detector::writeAlpideStatsToFile(std::string output_path,
   int comma;    alpidetree->Branch("ALPIDE_COMMA", &comma);
   int unknown;  alpidetree->Branch("ALPIDE_UNKNOWN", &unknown);
 
+
+  std::cout << "Writing alpide statistics of " << alpide_map.size() << " alpides to " << rootfile->GetName() << std::endl;
+
   for(auto const & chip_it : alpide_map) {
     if(chip_it.second != nullptr) {
       unsigned int unique_chip_id = chip_it.second->getGlobalChipId();
