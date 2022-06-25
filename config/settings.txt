@@ -1,5 +1,5 @@
 [General]
-output_dir_prefix=sim_output
+output_dir_prefix=/alf/data/focal/systemc/eventrate1000ns_triggerrate10000ns/
 verbose=false
 
 [alpide]
@@ -20,25 +20,28 @@ write_vcd=false
 write_vcd_clock=false
 
 [event]
-average_event_rate_ns=250
+average_event_rate_ns=1000
 monte_carlo_file_type=aliroot
 qed_noise_event_rate_ns=10000
 qed_noise_feed_rate_ns=5000
 qed_noise_input=false
 qed_noise_path=config/monte_carlo_events/pp
 qed_noise_rate_ns=250
+random_cluster_file=true
+random_cluster_filename=/software/max/alpide_systemc/config/out.root
 random_cluster_generation=true
+random_cluster_histogramname=hClusterSize
 random_cluster_size_mean=4
 random_cluster_size_stddev=1
 random_hit_generation=false
 strobe_active_length_ns=9900
 strobe_inactive_length_ns=100
-trigger_delay_ns=930
-trigger_filter_enable=true
-trigger_filter_time_ns=1230
+trigger_delay_ns=0
+trigger_filter_enable=false
+trigger_filter_time_ns=0
 
 [focal]
-monte_carlo_file_path=/software/max/alice/work/clusters_test/clusters_test_test_1.root
+monte_carlo_file_path=/software/max/alice/work/clusters_test/clusters_test_test_20.root
 staves_per_quadrant=33
 
 [its]
@@ -78,7 +81,7 @@ time_frame_length_ns=10000
 
 [simulation]
 n_events=500
-random_seed=0
+random_seed=1655824629506
 single_chip=false
 system_continuous_mode=true
 system_continuous_period_ns=10000
