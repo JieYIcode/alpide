@@ -65,7 +65,7 @@ namespace Focal {
         std::vector<bool> data_link_cfg;
 
         // 1200 Mbps links
-        for(unsigned int i = 0; i < Focal::CHIPS_PER_FOCAL_INNER_MODULE*Focal::INNER_MODULES_PER_INNER_STAVE; i++){
+        for(unsigned int i = 0; i < Focal::INNER_CHIPS_PER_FOCAL_INNER_MODULE*Focal::INNER_MODULES_PER_INNER_STAVE; i++){
           data_link_cfg.push_back(true);
         }
 
@@ -73,6 +73,9 @@ namespace Focal {
         for(unsigned int i = 0; i <   Focal::OUTER_MODULES_PER_INNER_STAVE; i++){
           data_link_cfg.push_back(false);
         }
+
+        std::cout << data_link_cfg.size() << "\t" << std::endl;
+
 
         return new ReadoutUnit(ru_name.c_str(),
                                mLayerId,

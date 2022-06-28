@@ -26,8 +26,9 @@ namespace Focal {
   // Module 2: 5x OB chips
 
   static const unsigned int CHIPS_PER_FOCAL_MODULE = 3;
-  static const unsigned int CHIPS_PER_FOCAL_INNER_MODULE = CHIPS_PER_FOCAL_MODULE;
-  static const unsigned int CHIPS_PER_FOCAL_OUTER_MODULE = CHIPS_PER_FOCAL_MODULE;
+  static const unsigned int INNER_CHIPS_PER_FOCAL_INNER_MODULE = 3;
+  static const unsigned int OUTER_CHIPS_PER_FOCAL_INNER_MODULE = 6;
+  static const unsigned int OUTER_CHIPS_PER_FOCAL_OUTER_MODULE = 3;
   static const unsigned int CHIPS_PER_FOCAL_IB_MODULE = 8;
   static const unsigned int CHIPS_PER_FOCAL_OB_MODULE = 5;
   static const unsigned int CHIPS_PER_STAVE = 15;
@@ -49,21 +50,29 @@ namespace Focal {
   static const unsigned int INNER_STAVES_PER_QUADRANT = STAVES_PER_HALF_PATCH*INNER_HALF_PATCHES_PER_QUADRANT;
 
   static const unsigned int MODULES_PER_STAVE = 5;
-  static const unsigned int INNER_MODULES_PER_INNER_STAVE = 2;
-  static const unsigned int OUTER_MODULES_PER_INNER_STAVE = 3;
+  static const unsigned int INNER_MODULES_PER_INNER_STAVE = 1;
+  static const unsigned int OUTER_MODULES_PER_INNER_STAVE = 2;
   static const unsigned int OUTER_MODULES_PER_OUTER_STAVE = 5;
 
-  static const unsigned int MODULES_PER_INNER_STAVE = 2; // 8 IB chips + 7 OB chips
-  static const unsigned int MODULES_PER_OUTER_STAVE = 3; // 5 + 5 + 5 OB chips
+  static const unsigned int CHIPS_PER_FOCAL_INNER_STAVE = INNER_CHIPS_PER_FOCAL_INNER_MODULE*INNER_MODULES_PER_INNER_STAVE + OUTER_CHIPS_PER_FOCAL_INNER_MODULE*OUTER_MODULES_PER_INNER_STAVE;
+  static const unsigned int CHIPS_PER_FOCAL_OUTER_STAVE = OUTER_CHIPS_PER_FOCAL_OUTER_MODULE*OUTER_MODULES_PER_OUTER_STAVE ;
+
+
+  static const unsigned int MODULES_PER_INNER_STAVE = INNER_MODULES_PER_INNER_STAVE+OUTER_MODULES_PER_INNER_STAVE;
+  static const unsigned int MODULES_PER_OUTER_STAVE = OUTER_MODULES_PER_OUTER_STAVE;
+
+
+  //static const unsigned int MODULES_PER_INNER_STAVE = 2; // 8 IB chips + 7 OB chips
+  //static const unsigned int MODULES_PER_OUTER_STAVE = 3; // 5 + 5 + 5 OB chips
 
   //static const unsigned int CTRL_LINKS_PER_INNER_STAVE = 1;
   //static const unsigned int CTRL_LINKS_PER_INNER_STAVE = 2;
   //static const unsigned int DATA_LINKS_PER_INNER_STAVE = CHIPS_PER_FOCAL_IB_MODULE+1;
 
-  static const unsigned int CTRL_LINKS_PER_INNER_STAVE = MODULES_PER_STAVE;
-  static const unsigned int DATA_LINKS_PER_INNER_STAVE = INNER_MODULES_PER_INNER_STAVE*CHIPS_PER_FOCAL_INNER_MODULE + OUTER_MODULES_PER_INNER_STAVE;
+  static const unsigned int CTRL_LINKS_PER_INNER_STAVE = INNER_MODULES_PER_INNER_STAVE+OUTER_MODULES_PER_INNER_STAVE;
+  static const unsigned int DATA_LINKS_PER_INNER_STAVE = INNER_MODULES_PER_INNER_STAVE*INNER_CHIPS_PER_FOCAL_INNER_MODULE + OUTER_MODULES_PER_INNER_STAVE;
 
-  static const unsigned int CTRL_LINKS_PER_OUTER_STAVE = MODULES_PER_STAVE;
+  static const unsigned int CTRL_LINKS_PER_OUTER_STAVE = OUTER_MODULES_PER_OUTER_STAVE;
   static const unsigned int DATA_LINKS_PER_OUTER_STAVE = OUTER_MODULES_PER_OUTER_STAVE;
 
   //static const unsigned int CTRL_LINKS_PER_OUTER_STAVE = 1;

@@ -152,8 +152,11 @@ ReadoutUnit::ReadoutUnit(sc_core::sc_module_name name,
 
   mDataLinkParsers.resize(n_data_links);
 
-  if(n_data_links != data_link_cfg.size())
-    throw std::runtime_error("ReadoutUnit: n_data_links did not match data_link_cfg size");
+  if(n_data_links != data_link_cfg.size()){
+    std::stringstream errMsg;
+    errMsg <<"ReadoutUnit: n_data_links " << n_data_links << " did not match data_link_cfg size " << data_link_cfg.size();
+    throw std::runtime_error(errMsg.str().c_str());
+  }
 
   for(unsigned int i = 0; i < n_data_links; i++) {
     // Data parsers should not save events, that just eats memory.. :(

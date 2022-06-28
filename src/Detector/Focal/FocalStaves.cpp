@@ -193,7 +193,7 @@ FocalInnerModule::FocalInnerModule(sc_core::sc_module_name const &name,
                                                  this, std::placeholders::_1));
 
   // Create chips
-  for(unsigned int i = 0; i < Focal::CHIPS_PER_FOCAL_INNER_MODULE; i++) {
+  for(unsigned int i = 0; i < Focal::INNER_CHIPS_PER_FOCAL_INNER_MODULE; i++) {
     pos.module_chip_id = i;
 
     unsigned int global_chip_id = (*position_to_global_chip_id_func)(pos);
@@ -251,6 +251,104 @@ void FocalInnerModule::addTraces(sc_trace_file *wf, std::string name_prefix) con
 ///@param position_to_global_chip_id_func Pointer to function used to determine position
 ///                                       based on global chip id
 ///@param cfg Alpide chip config passed to Alpide constructor
+FocalOuterLongModule::FocalOuterLongModule(sc_core::sc_module_name const &name,
+                             Detector::DetectorPosition pos,
+                             Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
+                             const AlpideConfig& cfg)
+  : sc_module(name)
+{
+  socket_control_in.register_transport(std::bind(&FocalOuterLongModule::processCommand,
+                                                 this, std::placeholders::_1));
+
+  // Create OB master chip first
+  pos.module_chip_id = 0;
+  unsigned int global_chip_id = (*position_to_global_chip_id_func)(pos);
+
+  std::string chip_name = "Chip_" + std::to_string(global_chip_id);
+  std::cout << "Creating chip with global ID " << global_chip_id;
+  std::cout << ", layer " << pos.layer_id << ", stave " << pos.stave_id;
+  std::cout << ", module " << pos.module_id << " (outer)";
+  std::cout << ", module chip id " << pos.module_chip_id << std::endl;
+
+  mChips.push_back(std::make_shared<Alpide>(chip_name.c_str(),
+                                            global_chip_id,
+                                            pos.module_chip_id,
+                                            cfg,
+                                            true, // Outer barrel mode
+                                            true, // Outer barrel master
+                                            Focal::OUTER_CHIPS_PER_FOCAL_INNER_MODULE-1)); // number of
+                                                                                  // slave chips
+
+  auto &master_chip = *mChips.back();
+  master_chip.s_system_clk_in(s_system_clk_in);
+  master_chip.s_data_output(socket_data_out);
+  socket_control_out[0].bind(master_chip.s_control_input);
+
+
+  // Create slave chips
+  for(unsigned int i = 0; i < Focal::OUTER_CHIPS_PER_FOCAL_INNER_MODULE-1; i++) {
+    pos.module_chip_id = i+1;
+
+    unsigned int global_chip_id = (*position_to_global_chip_id_func)(pos);
+
+    std::string chip_name = "Chip_" + std::to_string(global_chip_id);
+    std::cout << "Creating chip with global ID " << global_chip_id;
+    std::cout << ", layer " << pos.layer_id << ", stave " << pos.stave_id;
+    std::cout << ", module " << pos.module_id << " (outer)";
+    std::cout << ", module chip id " << pos.module_chip_id << std::endl;
+
+    mChips.push_back(std::make_shared<Alpide>(chip_name.c_str(),
+                                              global_chip_id,
+                                              pos.module_chip_id,
+                                              cfg,
+                                              true,    // Outer barrel mode
+                                              false)); // Inner barrel slave
+
+    auto &chip = *mChips.back();
+    chip.s_system_clk_in(s_system_clk_in);
+    socket_control_out[i+1].bind(chip.s_control_input);
+
+    // Connect data and busy to master chip
+    master_chip.s_local_busy_in[i](chip.s_local_busy_out);
+    master_chip.s_local_bus_data_in[i](chip.s_local_bus_data_out);
+  }
+
+}
+
+
+ControlResponsePayload
+FocalOuterLongModule::processCommand(const ControlRequestPayload &request) {
+  ControlResponsePayload b;
+  // SC_REPORT_INFO_VERB(name(), "Received Command", sc_core::SC_DEBUG);
+  for (size_t i = 0; i < socket_control_out.size(); ++i) {
+    auto result = socket_control_out[i]->transport(request);
+    if (request.chipId == i)
+      b = result;
+  }
+
+  return b;
+}
+
+
+///@brief Add SystemC signals to log in VCD trace file.
+///@param[in,out] wf Pointer to VCD trace file object
+///@param[in] name_prefix Name prefix to be added to all the trace names
+void FocalOuterLongModule::addTraces(sc_trace_file *wf, std::string name_prefix) const
+{
+  for(unsigned int i = 0; i < mChips.size(); i++) {
+    std::stringstream ss_chip;
+    ss_chip << name_prefix << "Chip_" << i << ".";
+    std::string chip_prefix = ss_chip.str();
+    mChips[i]->addTraces(wf, chip_prefix);
+  }
+}
+
+///@brief Constructor for Focal OB module (5 OB chips)
+///@param name SystemC module name
+///@param pos DetectorPosition object with position information.
+///@param position_to_global_chip_id_func Pointer to function used to determine position
+///                                       based on global chip id
+///@param cfg Alpide chip config passed to Alpide constructor
 FocalOuterModule::FocalOuterModule(sc_core::sc_module_name const &name,
                              Detector::DetectorPosition pos,
                              Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
@@ -276,7 +374,7 @@ FocalOuterModule::FocalOuterModule(sc_core::sc_module_name const &name,
                                             cfg,
                                             true, // Outer barrel mode
                                             true, // Outer barrel master
-                                            Focal::CHIPS_PER_FOCAL_OUTER_MODULE-1)); // number of
+                                            Focal::OUTER_CHIPS_PER_FOCAL_OUTER_MODULE-1)); // number of
                                                                                   // slave chips
 
   auto &master_chip = *mChips.back();
@@ -286,7 +384,7 @@ FocalOuterModule::FocalOuterModule(sc_core::sc_module_name const &name,
 
 
   // Create slave chips
-  for(unsigned int i = 0; i < Focal::CHIPS_PER_FOCAL_OUTER_MODULE-1; i++) {
+  for(unsigned int i = 0; i < Focal::OUTER_CHIPS_PER_FOCAL_OUTER_MODULE-1; i++) {
     pos.module_chip_id = i+1;
 
     unsigned int global_chip_id = (*position_to_global_chip_id_func)(pos);
@@ -388,8 +486,9 @@ FocalInnerStave::FocalInnerStave(sc_core::sc_module_name const &name,
                                                       std::placeholders::_1));
 
     // Forward data from chips in FocalIbModule object to StaveInterface
-    for(unsigned int link_id = 0; link_id < Focal::CHIPS_PER_FOCAL_INNER_MODULE; link_id++)
+    for(unsigned int link_id = 0; link_id < Focal::INNER_CHIPS_PER_FOCAL_INNER_MODULE; link_id++){
       mInnerModule[i]->socket_data_out[link_id](socket_data_out[link_id]);
+    }
 
 
   }
@@ -408,7 +507,7 @@ FocalInnerStave::FocalInnerStave(sc_core::sc_module_name const &name,
 
     std::cout << "Creating: " << mod_name << std::endl;
 
-    mOuterModule[i] = std::make_shared<FocalOuterModule>(mod_name.c_str(),
+    mOuterModule[i] = std::make_shared<FocalOuterLongModule>(mod_name.c_str(),
                                             pos,
                                             position_to_global_chip_id_func,
                                             cfg.chip_cfg);
@@ -417,7 +516,7 @@ FocalInnerStave::FocalInnerStave(sc_core::sc_module_name const &name,
 
     // Bind incoming control sockets to processCommand() in HalfModule object
     //  Note: There is only one control link in this stave
-    socket_control_in[i_ctrl].register_transport(std::bind(&FocalOuterModule::processCommand,
+    socket_control_in[i_ctrl].register_transport(std::bind(&FocalOuterLongModule::processCommand,
                                                       mOuterModule[i],
                                                       std::placeholders::_1));
     // Forward data from HalfModule object to StaveInterface
