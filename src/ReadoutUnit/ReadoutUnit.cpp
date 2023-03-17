@@ -224,24 +224,30 @@ void ReadoutUnit::sendTrigger(void)
   trigger_word.data = mTriggerIdCount-mPreviousTriggerId;
 
   std::string msg = "Send Trigger at: " + sc_core::sc_time_stamp().to_string();
+  std::cout << msg << std::endl;
   SC_REPORT_INFO_VERB(name(),msg.c_str(),sc_core::SC_DEBUG);
 
   uint64_t time_now = sc_time_stamp().value();
   bool filter_trigger = (time_now - mLastTriggerTime) < mTriggerFilterTimeNs;
 
   // Update current trigger ID in the data parsers
-  for(unsigned int i = 0; i < mDataLinkParsers.size(); i++)
+  for(unsigned int i = 0; i < mDataLinkParsers.size(); i++){
+    std::cout << "\tsetting " << mTriggerIdCount << " on datalinkparser" << i << std::endl;
     mDataLinkParsers[i]->setCurrentTriggerId(mTriggerIdCount);
+  }
 
   // Issue triggers on ALPIDE control links (unless trigger is being filtered)
   for(unsigned int i = 0; i < s_alpide_control_output.size(); i++) {
+    std::cout << "\tsending trigger on control output " << i << " / " << s_alpide_control_output.size() << std::endl;
     if(mTriggerFilterEnabled && filter_trigger) {
       // Filter triggers that come too close in time
       mTriggerActionMaps[i][mTriggerIdCount] = TRIGGER_FILTERED;
       mTriggersFilteredCount++;
     } else if(true) { ///@todo else if(link_busy[i] == false) {
       // If we are not busy, send trigger
+      std::cout << "\tsent trigger on control output " << i << std::endl;
       s_alpide_control_output[i]->transport(trigger_word);
+      std::cout << "\tsent trigger on control output " << i << std::endl;
       mTriggersSentCount[i]++;
       mTriggerActionMaps[i][mTriggerIdCount] = TRIGGER_SENT;
       mPreviousTriggerId = mTriggerIdCount;

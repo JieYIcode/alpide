@@ -45,6 +45,34 @@ namespace Focal {
     std::array<ControlInitiatorSocket, Focal::CHIPS_PER_FOCAL_IB_MODULE> socket_control_out;
   };
 
+  ///@brief A module for Focal consisting of FOCAL_CHIPS_PER_MODULE chips in IB configuration
+  struct FocalInnerModule : public sc_module
+  {
+    FocalInnerModule(sc_core::sc_module_name const &name,
+                  Detector::DetectorPosition pos,
+                  Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
+                  const AlpideConfig& cfg);
+
+    void addTraces(sc_trace_file *wf, std::string name_prefix) const;
+
+    sc_in_clk s_system_clk_in;
+    ControlTargetSocket socket_control_in;                                 // IB module control in
+    DataInitiatorSocket socket_data_out[Focal::CHIPS_PER_FOCAL_INNER_MODULE]; // IB module data out
+
+    std::vector<std::shared_ptr<Alpide>> getChips(void) const {
+      return mChips;
+    }
+
+    ControlResponsePayload processCommand(ControlRequestPayload const &request);
+
+  private:
+    std::vector<std::shared_ptr<Alpide>> mChips;
+
+    // Distribution of ctrl to individual chips in half-module
+    std::array<ControlInitiatorSocket, Focal::CHIPS_PER_FOCAL_INNER_MODULE> socket_control_out;
+  };
+
+
 
   ///@brief A module for Focal consisting of 5 chips in OB configuration
   struct FocalObModule : public sc_module
@@ -73,6 +101,33 @@ namespace Focal {
     std::array<ControlInitiatorSocket, Focal::CHIPS_PER_FOCAL_OB_MODULE> socket_control_out;
   };
 
+  ///@brief A module for Focal consisting of CIPS_PER_OUTER_MODULE chips in OB configuration
+  struct FocalOuterModule : public sc_module
+  {
+    FocalOuterModule(sc_core::sc_module_name const &name,
+                  Detector::DetectorPosition pos,
+                  Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
+                  const AlpideConfig& cfg);
+
+    void addTraces(sc_trace_file *wf, std::string name_prefix) const;
+
+    sc_in_clk s_system_clk_in;
+    ControlTargetSocket socket_control_in; // Half-module control in
+    DataInitiatorSocket socket_data_out;   // Half-module data out
+
+    std::vector<std::shared_ptr<Alpide>> getChips(void) const {
+      return mChips;
+    }
+
+    ControlResponsePayload processCommand(ControlRequestPayload const &request);
+
+  private:
+    std::vector<std::shared_ptr<Alpide>> mChips;
+
+    // Distribution of ctrl in half-module
+    std::array<ControlInitiatorSocket, Focal::CHIPS_PER_FOCAL_OUTER_MODULE> socket_control_out;
+  };
+
 
   ///@brief Focal stave consisting of 15 chips in total:
   ///       1x "Focal IB module" (8 IB chips) + 1x ITS OB half-module (7 OB chips)
@@ -86,8 +141,8 @@ namespace Focal {
     std::vector<std::shared_ptr<Alpide>> getChips(void) const;
 
   private:
-    std::shared_ptr<Focal::FocalIbModule> mIbModule;
-    std::shared_ptr<ITS::HalfModule> mObModule;
+    std::shared_ptr<Focal::FocalInnerModule> mInnerModule[INNER_MODULES_PER_INNER_STAVE];
+    std::shared_ptr<Focal::FocalOuterModule> mOuterModule[OUTER_MODULES_PER_INNER_STAVE];
   };
 
   ///@brief Focal stave consisting of 15 chips in total:
@@ -103,7 +158,7 @@ namespace Focal {
     std::vector<std::shared_ptr<Alpide>> getChips(void) const;
 
   private:
-    std::shared_ptr<Focal::FocalObModule> mObModules[MODULES_PER_OUTER_STAVE];
+    std::shared_ptr<Focal::FocalOuterModule> mOuterModules[OUTER_MODULES_PER_OUTER_STAVE];
   };
 
 }

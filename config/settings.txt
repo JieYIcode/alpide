@@ -1,5 +1,5 @@
 [General]
-output_dir_prefix=/alf/data/focal/systemc/eventrate1000ns_triggerrate10000ns/
+output_dir_prefix=sim_output
 verbose=false
 
 [alpide]
@@ -33,7 +33,7 @@ random_cluster_generation=true
 random_cluster_histogramname=hClusterSize
 random_cluster_size_mean=4
 random_cluster_size_stddev=1
-random_hit_generation=false
+random_hit_generation=true
 strobe_active_length_ns=9900
 strobe_inactive_length_ns=100
 trigger_delay_ns=0
@@ -42,7 +42,7 @@ trigger_filter_time_ns=0
 
 [focal]
 monte_carlo_file_path=/software/max/alice/work/clusters_test/clusters_test_test_20.root
-staves_per_quadrant=33
+staves_per_quadrant=3
 
 [its]
 bunch_crossing_rate_ns=25
@@ -80,7 +80,7 @@ random_particles_per_s_stddev=0.5E9
 time_frame_length_ns=10000
 
 [simulation]
-n_events=500
+n_events=10
 random_seed=1655824629506
 single_chip=false
 system_continuous_mode=true
