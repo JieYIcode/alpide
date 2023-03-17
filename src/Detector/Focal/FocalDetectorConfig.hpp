@@ -32,6 +32,7 @@ namespace Focal {
 
   unsigned int Focal_position_to_global_chip_id(const Detector::DetectorPosition& pos);
   Detector::DetectorPosition Focal_global_chip_id_to_position(unsigned int global_chip_id);
+  
 }
 
 

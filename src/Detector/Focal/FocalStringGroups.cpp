@@ -5,13 +5,13 @@
  * @brief  Classes for Focal staves
  */
 
-/*
+#include "FocalStringGroups.hpp"
 #include <misc/vcd_trace.hpp>
-#include "FocalStaves.hpp"
 
 using namespace ITS;
 using namespace Focal;
-*/
+using namespace FocalStringGroup;
+
 #ifdef LEGACY_SVN
 
 ///@brief Constructor for Focal IB module (8 IB chips)
@@ -442,30 +442,95 @@ void FocalOuterModule::addTraces(sc_trace_file *wf, std::string name_prefix) con
 }
 
 #endif
-/*
+
+///@brief Constructor for Focal Inner module (3 IB chips), baseline design for 2022
+///@param name SystemC module name
+///@param pos DetectorPosition object with position information.
+///@param position_to_global_chip_id_func Pointer to function used to determine position
+///                                       based on global chip id
+///@param cfg Alpide chip config passed to Alpide constructor
+FocalStringGroup_I3::FocalStringGroup_I3(sc_core::sc_module_name const &name,
+                             Detector::DetectorPosition pos,
+                             Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
+                             const AlpideConfig& cfg)
+  : sc_module(name)
+{
+  socket_control_in.register_transport(std::bind(&FocalStringGroup_I3::processCommand,
+                                                 this, std::placeholders::_1));
+
+  // Create chips
+  for(unsigned int i = 0; i < Focal_Inner3::CHIPS; i++) {
+    pos.module_chip_id = i;
+
+    unsigned int global_chip_id = (*position_to_global_chip_id_func)(pos);
+
+    std::string chip_name = "Chip_" + std::to_string(global_chip_id);
+    std::cout << "Creating chip with global ID " << global_chip_id;
+    std::cout << ", layer " << pos.layer_id << ", stave " << pos.stave_id;
+    std::cout << ", module " << pos.module_id << " (inner)";
+    std::cout << ", module chip id " << pos.module_chip_id << std::endl;
+
+    mChips.push_back(std::make_shared<Alpide>(chip_name.c_str(),
+                                              global_chip_id,
+                                              pos.module_chip_id,
+                                              cfg,
+                                              false)); // Inner barrel mode
+
+    auto &chip = *mChips.back();
+    chip.s_system_clk_in(s_system_clk_in);
+    chip.s_data_output(socket_data_out[i]);
+    socket_control_out[i].bind(chip.s_control_input);
+  }
+}
+
+
+ControlResponsePayload
+FocalStringGroup_I3::processCommand(const ControlRequestPayload &request) {
+  ControlResponsePayload b;
+  // SC_REPORT_INFO_VERB(name(), "Received Command", sc_core::SC_DEBUG);
+  for (size_t i = 0; i < socket_control_out.size(); ++i) {
+    auto result = socket_control_out[i]->transport(request);
+    if (request.chipId == i)
+      b = result;
+  }
+
+  return b;
+}
+
+
+///@brief Add SystemC signals to log in VCD trace file.
+///@param[in,out] wf Pointer to VCD trace file object
+///@param[in] name_prefix Name prefix to be added to all the trace names
+void FocalStringGroup_I3::addTraces(sc_trace_file *wf, std::string name_prefix) const
+{
+  for(unsigned int i = 0; i < mChips.size(); i++) {
+    std::stringstream ss_chip;
+    ss_chip << name_prefix << "Chip_" << i << ".";
+    std::string chip_prefix = ss_chip.str();
+    mChips[i]->addTraces(wf, chip_prefix);
+  }
+}
+
+
 ///@brief Constructor for general Focal 5x Outer3 module
 ///@param name SystemC module name
 ///@param pos DetectorPosition object with position information.
 ///@param position_to_global_chip_id_func Pointer to function used to determine position
 ///                                       based on global chip id
 ///@param cfg Alpide chip config passed to Alpide constructor
-FocalOuterString_O3_O3_O3_O3_O3::FocalOuterString_O3_O3_O3_O3_O3(sc_core::sc_module_name const &name,
-                             Detector::DetectorPosition pos,
-                             Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
-                             const AlpideConfig& cfg,
-                             const FocalModuleConfig& _mcfg
-                             )
-  : sc_module(name),
-  mModuleConfig(_mcfg)
+FocalStringGroup_O3::FocalStringGroup_O3(sc_core::sc_module_name const &name,
+                  Detector::DetectorPosition pos,
+                  Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
+                  const AlpideConfig& cfg                             
+                  )
+  : sc_module(name)
 {
 
-  socket_control_in.register_transport(std::bind(&FocalOuterString_O3_O3_O3_O3_O3::processCommand,
+    socket_control_in.register_transport(std::bind(&FocalStringGroup_O3::processCommand,
                                                  this, std::placeholders::_1));
 
-  // loop through the 5 OB string groups
-  for(unsigned int igroup=0;igroup<Focal_O3_O3_O3_O3_O3::GROUPS;igroup++){
+
     // Create OB master chip first
-    pos.module_chip_id = 0;
     unsigned int global_chip_id = (*position_to_global_chip_id_func)(pos);
 
     std::string chip_name = "Chip_" + std::to_string(global_chip_id);
@@ -480,25 +545,17 @@ FocalOuterString_O3_O3_O3_O3_O3::FocalOuterString_O3_O3_O3_O3_O3(sc_core::sc_mod
                                               cfg,
                                               true, // Outer barrel mode
                                               true, // Outer barrel master
-                                              mModuleConfig.nChips-1)); // number of
-                                                                                    // slave chips
+                                              Focal_Outer3::CHIPS-1)); // number of slave chips
+                                                                                    
 
     auto &master_chip = *mChips.back();
     master_chip.s_system_clk_in(s_system_clk_in);
 
-    //socket_data_out = std::vector<DataInitiatorSocket>();
-    DataInitiatorSocket dis;
-    socket_data_out.push_back(std::move(dis));
-    master_chip.s_data_output(socket_data_out[0]);
-    
-    socket_control_out = std::vector<ControlInitiatorSocket>();
-    ControlInitiatorSocket cis;
-    socket_control_out.push_back(std::move(cis));
+    master_chip.s_data_output(socket_data_out);
     socket_control_out[0].bind(master_chip.s_control_input);
-
-
-    // Create slave chips
-    for(unsigned int i = 0; i < mModuleConfig.nChips-1; i++) {
+    
+      // Create slave chips
+    for(unsigned int i = 0; i < Focal_Outer3::CHIPS-1; i++) {
       pos.module_chip_id = i+1;
 
       unsigned int global_chip_id = (*position_to_global_chip_id_func)(pos);
@@ -518,19 +575,143 @@ FocalOuterString_O3_O3_O3_O3_O3::FocalOuterString_O3_O3_O3_O3_O3(sc_core::sc_mod
 
       auto &chip = *mChips.back();
       chip.s_system_clk_in(s_system_clk_in);
-      
-      socket_control_out.push_back(std::move(cis));
       socket_control_out[i+1].bind(chip.s_control_input);
 
       // Connect data and busy to master chip
       master_chip.s_local_busy_in[i](chip.s_local_busy_out);
       master_chip.s_local_bus_data_in[i](chip.s_local_bus_data_out);
     }
-  } 
-  
+    
 }
 
-*/
+ControlResponsePayload
+FocalStringGroup_O3::processCommand(const ControlRequestPayload &request) {
+  ControlResponsePayload b;
+  // SC_REPORT_INFO_VERB(name(), "Received Command", sc_core::SC_DEBUG);
+  for (size_t i = 0; i < socket_control_out.size(); ++i) {
+    auto result = socket_control_out[i]->transport(request);
+    if (request.chipId == i)
+      b = result;
+  }
+
+  return b;
+}
+
+
+///@brief Add SystemC signals to log in VCD trace file.
+///@param[in,out] wf Pointer to VCD trace file object
+///@param[in] name_prefix Name prefix to be added to all the trace names
+void FocalStringGroup_O3::addTraces(sc_trace_file *wf, std::string name_prefix) const
+{
+  for(unsigned int i = 0; i < mChips.size(); i++) {
+    std::stringstream ss_chip;
+    ss_chip << name_prefix << "Chip_" << i << ".";
+    std::string chip_prefix = ss_chip.str();
+    mChips[i]->addTraces(wf, chip_prefix);
+  }
+}
+
+
+
+///@brief Constructor for general Focal 5x Outer3 module
+///@param name SystemC module name
+///@param pos DetectorPosition object with position information.
+///@param position_to_global_chip_id_func Pointer to function used to determine position
+///                                       based on global chip id
+///@param cfg Alpide chip config passed to Alpide constructor
+FocalStringGroup_O6::FocalStringGroup_O6(sc_core::sc_module_name const &name,
+                  Detector::DetectorPosition pos,
+                  Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
+                  const AlpideConfig& cfg                             
+                  )
+  : sc_module(name)
+{
+
+    socket_control_in.register_transport(std::bind(&FocalStringGroup_O6::processCommand,
+                                                 this, std::placeholders::_1));
+
+
+    // Create OB master chip first
+    unsigned int global_chip_id = (*position_to_global_chip_id_func)(pos);
+
+    std::string chip_name = "Chip_" + std::to_string(global_chip_id);
+    std::cout << "Creating chip with global ID " << global_chip_id;
+    std::cout << ", layer " << pos.layer_id << ", stave " << pos.stave_id;
+    std::cout << ", module " << pos.module_id << " (outer)";
+    std::cout << ", module chip id " << pos.module_chip_id << std::endl;
+
+    mChips.push_back(std::make_shared<Alpide>(chip_name.c_str(),
+                                              global_chip_id,
+                                              pos.module_chip_id,
+                                              cfg,
+                                              true, // Outer barrel mode
+                                              true, // Outer barrel master
+                                              Focal_Outer6::CHIPS-1)); // number of slave chips
+                                                                                    
+
+    auto &master_chip = *mChips.back();
+    master_chip.s_system_clk_in(s_system_clk_in);
+
+    master_chip.s_data_output(socket_data_out);
+    socket_control_out[0].bind(master_chip.s_control_input);
+    
+      // Create slave chips
+    for(unsigned int i = 0; i < Focal_Outer6::CHIPS-1; i++) {
+      pos.module_chip_id = i+1;
+
+      unsigned int global_chip_id = (*position_to_global_chip_id_func)(pos);
+
+      std::string chip_name = "Chip_" + std::to_string(global_chip_id);
+      std::cout << "Creating chip with global ID " << global_chip_id;
+      std::cout << ", layer " << pos.layer_id << ", stave " << pos.stave_id;
+      std::cout << ", module " << pos.module_id << " (outer)";
+      std::cout << ", module chip id " << pos.module_chip_id << std::endl;
+
+      mChips.push_back(std::make_shared<Alpide>(chip_name.c_str(),
+                                                global_chip_id,
+                                                pos.module_chip_id,
+                                                cfg,
+                                                true,    // Outer barrel mode
+                                                false)); // Inner barrel slave
+
+      auto &chip = *mChips.back();
+      chip.s_system_clk_in(s_system_clk_in);
+      socket_control_out[i+1].bind(chip.s_control_input);
+
+      // Connect data and busy to master chip
+      master_chip.s_local_busy_in[i](chip.s_local_busy_out);
+      master_chip.s_local_bus_data_in[i](chip.s_local_bus_data_out);
+    }
+    
+}
+
+ControlResponsePayload
+FocalStringGroup_O6::processCommand(const ControlRequestPayload &request) {
+  ControlResponsePayload b;
+  // SC_REPORT_INFO_VERB(name(), "Received Command", sc_core::SC_DEBUG);
+  for (size_t i = 0; i < socket_control_out.size(); ++i) {
+    auto result = socket_control_out[i]->transport(request);
+    if (request.chipId == i)
+      b = result;
+  }
+
+  return b;
+}
+
+
+///@brief Add SystemC signals to log in VCD trace file.
+///@param[in,out] wf Pointer to VCD trace file object
+///@param[in] name_prefix Name prefix to be added to all the trace names
+void FocalStringGroup_O6::addTraces(sc_trace_file *wf, std::string name_prefix) const
+{
+  for(unsigned int i = 0; i < mChips.size(); i++) {
+    std::stringstream ss_chip;
+    ss_chip << name_prefix << "Chip_" << i << ".";
+    std::string chip_prefix = ss_chip.str();
+    mChips[i]->addTraces(wf, chip_prefix);
+  }
+}
+
 
 #ifdef LEGACY_SVN
 ControlResponsePayload

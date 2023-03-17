@@ -13,11 +13,14 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <QSettings>
+
 
 #include "FocalDetectorConfig.hpp"
 #include "Detector/Common/ITSModulesStaves.hpp"
 #include "ReadoutUnit/ReadoutUnit.hpp"
 #include <Alpide/PixelHit.hpp>
+
 
 namespace Focal {
 
@@ -48,6 +51,7 @@ namespace Focal {
   public:
     FocalDetector(sc_core::sc_module_name name,
                   const FocalDetectorConfig& config,
+                  const QSettings *settings,
                   unsigned int trigger_filter_time,
                   bool trigger_filter_enable,
                   unsigned int data_rate_interval_ns);

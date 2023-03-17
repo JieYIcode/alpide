@@ -115,6 +115,12 @@ void setDefaultSimSettings(QSettings *readoutSimSettings) {
 
   defaultSettings["focal/monte_carlo_file_path"] = DEFAULT_FOCAL_MONTE_CARLO_FILE_PATH;
   defaultSettings["focal/staves_per_quadrant"] = DEFAULT_FOCAL_STAVES_PER_QUADRANT;
+  defaultSettings["focal/innerstring"] = DEFAULT_FOCAL_INNER_STRING;
+  defaultSettings["focal/innerstring"] = DEFAULT_FOCAL_OUTER_STRING;
+  defaultSettings["focal/bunch_crossing_rate_ns"] = DEFAULT_FOCAL_BUNCH_CROSSING_RATE_NS;
+  defaultSettings["focal/hit_multiplicity_distribution_file"] = DEFAULT_FOCAL_HIT_MULTIPLICITY_DISTRIBUTION_FILE;
+  defaultSettings["focal/hit_density_layer0"] = DEFAULT_FOCAL_HIT_DENSITY_LAYER0;
+  defaultSettings["focal/hit_density_layer1"] = DEFAULT_FOCAL_HIT_DENSITY_LAYER1;
 
   defaultSettings["event/random_hit_generation"] = DEFAULT_EVENT_RANDOM_HIT_GENERATION;
   defaultSettings["event/random_cluster_generation"] = DEFAULT_EVENT_RANDOM_CLUSTER_GENERATION;

@@ -26,28 +26,28 @@ typedef struct {
   Int_t iEvent;
   Int_t iFolder;
 
-  Int_t nPixS1;
-  Int_t rowS1[C_MAX_HITS];
-  Int_t colS1[C_MAX_HITS];
-  Int_t ampS1[C_MAX_HITS];
+  // first pixel layer
+  Int_t nPix1;
+  Int_t rowPix1[C_MAX_HITS];
+  Int_t colPix1[C_MAX_HITS];
 
-  Int_t nPixS3;
-  Int_t rowS3[C_MAX_HITS];
-  Int_t colS3[C_MAX_HITS];
-  Int_t ampS3[C_MAX_HITS];
+  //second pixel layer
+  Int_t nPix2;
+  Int_t rowPix2[C_MAX_HITS];
+  Int_t colPix2[C_MAX_HITS];
 } MacroPixelEvent;
 
 typedef struct {
   Int_t iEvent;
   Int_t iFolder;
   
-  Int_t nPixS1;
-  Int_t yS1[C_MAX_HITS];
-  Int_t xS1[C_MAX_HITS];
+  Int_t nPixLfirst;
+  Int_t yLfirst[C_MAX_HITS];
+  Int_t xLfirst[C_MAX_HITS];
 
-  Int_t nPixS3;
-  Int_t yS3[C_MAX_HITS];
-  Int_t xS3[C_MAX_HITS];
+  Int_t nPixLsecond;
+  Int_t yLsecond[C_MAX_HITS];
+  Int_t xLsecond[C_MAX_HITS];
 } MetricPixelEvent;
 
 class EventRootFocal {
@@ -72,6 +72,12 @@ private:
   bool mHitValid;
 
 
+  float _pixX;
+  float _pixY; 
+  int _iEvent;
+  short _segment; // Segment in the FoCal detector
+
+/*
   TBranch *mBranch_iEvent;
   TBranch *mBranch_iFolder;
   TBranch *mBranch_nPixS1;
@@ -83,7 +89,7 @@ private:
   TBranch *mBranchRowS3;
   TBranch *mBranchColS3;
   TBranch *mBranchAmpS3;
-
+*/
 
   MacroPixelEvent* mEvent;
 
@@ -94,7 +100,9 @@ private:
   bool mRandomEventOrder;
   bool mMoreEventsLeft = true;
   uint64_t mNumEntries; // Number of entries in TTree
+  uint64_t mNumEvents; // Number of events in TTree
   uint64_t mEntryCounter = 0;
+  uint64_t mEventCounter = 0;
 
   /// Number of staves per quadrant included in the simulation
   const unsigned int mStavesPerQuadrant;
@@ -117,7 +125,6 @@ public:
                  Detector::t_global_chip_id_to_position_func global_chip_id_to_position_func,
                  Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
                  const QString& event_filename,
-                 bool aliroot,
                  unsigned int staves_per_quadrant,
                  unsigned int random_seed,
                  std::string _outpath,

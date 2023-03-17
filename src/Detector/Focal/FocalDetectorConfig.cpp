@@ -19,19 +19,22 @@ unsigned int Focal::Focal_position_to_global_chip_id(const Detector::DetectorPos
   unsigned int stave_in_quadrant = pos.stave_id % STAVES_PER_QUADRANT;
 
   global_chip_id += quadrant*CHIPS_PER_QUADRANT;
-  global_chip_id += stave_in_quadrant*CHIPS_PER_STAVE;
+  global_chip_id += stave_in_quadrant*CHIPS_PER_STRING;
 
   if(stave_in_quadrant < INNER_STAVES_PER_QUADRANT) {
     // Focal Inner Stave
-    if(pos.module_id < INNER_MODULES_PER_INNER_STAVE) {
+    if(pos.module_id < Focal_I3_I3_O3_O6::INNERGROUPS) {
       // Second module with 7 outer barrel chips in this stave
-      global_chip_id += INNER_CHIPS_PER_FOCAL_INNER_MODULE*pos.module_id;
+      global_chip_id += Focal_Inner3::CHIPS*pos.module_id;
     } else {
-      global_chip_id += INNER_CHIPS_PER_FOCAL_INNER_MODULE*INNER_MODULES_PER_INNER_STAVE+OUTER_CHIPS_PER_FOCAL_INNER_MODULE*  (pos.module_id-INNER_MODULES_PER_INNER_STAVE);
+      global_chip_id += Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS;
+      if(pos.module_id >= Focal_I3_I3_O3_O6::INNERGROUPS+Focal_I3_I3_O3_O6::OUTERGROUPS_O3 ){
+        global_chip_id += Focal_Outer3::CHIPS;
+      }
     }
   } else {
     // Focal Outer Stave
-    global_chip_id += pos.module_id * OUTER_CHIPS_PER_FOCAL_OUTER_MODULE;
+    global_chip_id += pos.module_id * Focal_Outer3::CHIPS;
   }
   
 
@@ -55,8 +58,8 @@ Detector::DetectorPosition Focal::Focal_global_chip_id_to_position(unsigned int 
   layer_id = global_chip_id/CHIPS_PER_LAYER;
   global_chip_id -= layer_id*CHIPS_PER_LAYER;
 
-  stave_id = global_chip_id/CHIPS_PER_STAVE;
-  global_chip_id -= stave_id*CHIPS_PER_STAVE;
+  stave_id = global_chip_id/CHIPS_PER_STRING;
+  global_chip_id -= stave_id*CHIPS_PER_STRING;
 
   unsigned int stave_in_quadrant = stave_id % STAVES_PER_QUADRANT;
 

@@ -13,7 +13,7 @@
 
 #include "StimuliBase.hpp"
 #include "Alpide/Alpide.hpp"
-#include "Event/EventGenITS.hpp"
+#include "Event/EventGenFOCAL.hpp"
 #include "Detector/Focal/FocalDetector.hpp"
 #include "Detector/Common/ITSModulesStaves.hpp"
 #include <QSettings>
@@ -30,7 +30,7 @@ private:
   sc_signal<bool> s_alpide_data_line;
 
 private:
-  std::unique_ptr<EventGenITS> mEventGen;
+  std::unique_ptr<EventGenFOCAL> mEventGen;
 
   // mFocal is only used for detector simulation
   std::unique_ptr<Focal::FocalDetector> mFocal;
