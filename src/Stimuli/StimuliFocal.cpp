@@ -6,6 +6,7 @@
  */
 
 #include "StimuliFocal.hpp"
+#include "Event/EventGenFOCAL.hpp"
 #include "Detector/Common/DetectorSimulationStats.hpp"
 
 // Ignore warnings about use of auto_ptr and unused parameters in SystemC library
@@ -44,13 +45,14 @@ StimuliFocal::StimuliFocal(sc_core::sc_module_name name, QSettings* settings, st
   config.chip_cfg = mChipCfg;
 
   // Focal uses same event generator as ITS
-  mEventGen = std::move(std::unique_ptr<EventGenITS>(new EventGenITS("event_gen",
+  mEventGen = std::move(std::unique_ptr<EventGenFOCAL>(new EventGenFOCAL("event_gen",
                                                                      config,
                                                                      settings,
                                                                      mOutputPath)));
 
   mFocal = std::move(std::unique_ptr<Focal::FocalDetector>(new Focal::FocalDetector("Focal",
                                                                                     config,
+                                                                                    settings,
                                                                                     mTriggerFilterTimeNs,
                                                                                     mTriggerFilterEnabled,
                                                                                     mDataRateIntervalNs)));
@@ -100,7 +102,7 @@ void StimuliFocal::stimuliMainMethod(void)
     std::cout << mEventGen->getTriggeredEventCount() << std::endl;
     //}
 
-    std::cout << "Feeding " << mEventGen->getTriggeredEvent().size() << " pixels to Focal detector." << std::endl;
+    std::cout << "StimuliFOCAL: Feeding " << mEventGen->getTriggeredEvent().size() << " pixels to Focal detector." << std::endl;
     // Get hits for this event, and "feed" them to the Focal detector
     auto event_hits = mEventGen->getTriggeredEvent();
 
@@ -219,5 +221,6 @@ void StimuliFocal::writeStimuliInfo(void) const
 
 StimuliFocal::~StimuliFocal(){
   std::cout << "Stimuli destructor called" << std::endl;
+  mEventGen.reset();
   mFocal.reset();
 }

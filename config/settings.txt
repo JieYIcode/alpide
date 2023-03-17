@@ -21,19 +21,24 @@ write_vcd_clock=false
 
 [event]
 average_event_rate_ns=1000
+<<<<<<< HEAD
 monte_carlo_file_type=aliroot
+=======
+monte_carlo_file_type=root
+>>>>>>> a7f5ab6fc4b972aa3d3d3ebc46b113925ce3ba7b
 qed_noise_event_rate_ns=10000
 qed_noise_feed_rate_ns=5000
 qed_noise_input=false
 qed_noise_path=config/monte_carlo_events/pp
 qed_noise_rate_ns=250
 random_cluster_file=true
+<<<<<<< HEAD
 random_cluster_filename=/software/max/alpide_systemc/config/out.root
-random_cluster_generation=true
+random_cluster_generation=false
 random_cluster_histogramname=hClusterSize
 random_cluster_size_mean=4
 random_cluster_size_stddev=1
-random_hit_generation=true
+random_hit_generation=false
 strobe_active_length_ns=9900
 strobe_inactive_length_ns=100
 trigger_delay_ns=0
@@ -41,8 +46,14 @@ trigger_filter_enable=false
 trigger_filter_time_ns=0
 
 [focal]
-monte_carlo_file_path=/software/max/alice/work/clusters_test/clusters_test_test_20.root
-staves_per_quadrant=3
+bunch_crossing_rate_ns=25
+hit_density_layer0=0.24
+hit_density_layer1=0.42
+hit_multiplicity_distribution_file=config/multipl_dist_focal_raw_bins.txt
+innerstring=I3_I3_O3_O6
+monte_carlo_file_path=/home/mxr/data/systemc/HitsTreePythiapThat2GeV.root
+outerstring=O3_O3_O3_O3_O3
+staves_per_quadrant=33
 
 [its]
 bunch_crossing_rate_ns=25
@@ -80,8 +91,13 @@ random_particles_per_s_stddev=0.5E9
 time_frame_length_ns=10000
 
 [simulation]
+<<<<<<< HEAD
 n_events=10
 random_seed=1655824629506
+=======
+n_events=1000
+random_seed=0
+>>>>>>> a7f5ab6fc4b972aa3d3d3ebc46b113925ce3ba7b
 single_chip=false
 system_continuous_mode=true
 system_continuous_period_ns=10000

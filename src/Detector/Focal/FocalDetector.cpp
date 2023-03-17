@@ -12,6 +12,7 @@
 #include "Detector/Common/DetectorSimulationStats.hpp"
 #include "Detector/Focal/Focal_creator.hpp"
 #include <misc/vcd_trace.hpp>
+#include <iostream>
 
 using namespace Focal;
 
@@ -26,6 +27,7 @@ SC_HAS_PROCESS(FocalDetector);
 ///                             be counted, to be used for data rate calculations
 FocalDetector::FocalDetector(sc_core::sc_module_name name,
                              const FocalDetectorConfig& config,
+                             const QSettings *settings,
                              unsigned int trigger_filter_time,
                              bool trigger_filter_enable,
                              unsigned int data_rate_interval_ns)
@@ -109,7 +111,7 @@ void FocalDetector::buildDetector(const FocalDetectorConfig& config,
     for(unsigned int sta_id = 0; sta_id < config.layer[lay_id].num_staves; sta_id++) {
       // Connect the busy in/out signals for the RUs in a daisy chain
       // ------------------------------------------------------------
-      std::cout << "Connecting busy links for Stave ID " << sta_id << std::endl; 
+      std::cout << "Connecting busy links for Stave ID " << sta_id << std::endl;
       if(sta_id == num_staves-1) {
         // Connect busy input of first RU to busy output of last RU.
         // If only 1 stave/RU was specified, this will actually connect
@@ -136,14 +138,17 @@ void FocalDetector::buildDetector(const FocalDetectorConfig& config,
       RU.s_system_clk_in(s_system_clk_in);
       stave.s_system_clk_in(s_system_clk_in);
 
+      std::cout << "Connected system_clk_in on RU " << lay_id<< ":" << sta_id;
+      std::cout << std::endl;
+
       if(stave.numCtrlLinks() != RU.numCtrlLinks()) {
-        std::string error_msg = "Number of control links in stave and RU did not the same (";
+        std::string error_msg = "Number of control links in stave and RU are not the same (";
         error_msg += std::to_string(stave.numCtrlLinks()) + " vs. " + std::to_string(RU.numCtrlLinks()) + ")";
 
         throw std::runtime_error(error_msg);
       }
       if(stave.numDataLinks() != RU.numDataLinks()) {
-        std::string error_msg = "Number of data links in stave and RU did not the same (";
+        std::string error_msg = "Number of data links in stave and RU are not the same (";
         error_msg += std::to_string(stave.numDataLinks()) + " vs. " + std::to_string(RU.numDataLinks()) + ")";
 
         throw std::runtime_error(error_msg);
@@ -153,6 +158,10 @@ void FocalDetector::buildDetector(const FocalDetectorConfig& config,
       for(unsigned int link_num = 0; link_num < stave.numCtrlLinks(); link_num++) {
         RU.s_alpide_control_output[link_num].bind(stave.socket_control_in[link_num]);
       }
+
+
+      std::cout << "Binded system_alpide_control on RU " << lay_id<< ":" << sta_id <<" for "<<stave.numCtrlLinks() << " CTRL links";
+      std::cout << std::endl;
 
       // Get a vector of pointer to the Alpide chips created by the new stave,
       // and add them to a map of chip id vs Alpide chip object.
@@ -268,17 +277,17 @@ void FocalDetector::triggerMethod(void)
   std::cout << "@ " << time_now << " ns: \tFocal Detector triggered!" << std::endl;
 
   for(unsigned int i = 0; i < N_LAYERS; i++) {
-     std::cout << "\tPreparing for triggering " << mReadoutUnits[i].size() << " RUs in layer " << i << std::endl;
+     //std::cout << "\tPreparing for triggering " << mReadoutUnits[i].size() << " RUs in layer " << i << std::endl;
   }
 
   for(unsigned int i = 0; i < N_LAYERS; i++) {
     for(auto RU = mReadoutUnits[i].begin(); RU != mReadoutUnits[i].end(); RU++) {
-      std::cout << "\t...triggered RU " << RU->basename() << " with " << RU->numDataLinks()  << " datalinks and "<<RU->numCtrlLinks() << " control links" << std::endl;
+      //std::cout << "\t...triggered RU " << RU->basename() << " with " << RU->numDataLinks()  << " datalinks and "<<RU->numCtrlLinks() << " control links" << std::endl;
       RU->E_trigger_in.notify(SC_ZERO_TIME);
     }
   }
 
-  std::cout << "Finished triggering FOCAL detector." << std::endl;
+  //std::cout << "Finished triggering FOCAL detector." << std::endl;
 }
 
 

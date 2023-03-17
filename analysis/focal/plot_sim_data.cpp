@@ -135,13 +135,13 @@ unsigned int get_ob_master_busy_count(const std::vector<std::map<std::string, un
   unsigned int num_ob_chips;
 
   if(stave_num_in_quadrant < Focal::INNER_STAVES_PER_QUADRANT)
-    num_ob_chips = ITS::CHIPS_PER_HALF_MODULE;
+    num_ob_chips = Focal::OUTER_MODULES_PER_INNER_STAVE*Focal::OUTER_CHIPS_PER_FOCAL_INNER_MODULE;
   else
-    num_ob_chips = Focal::CHIPS_PER_FOCAL_OB_MODULE;
+    num_ob_chips = Focal::OUTER_MODULES_PER_OUTER_STAVE*Focal::OUTER_CHIPS_PER_FOCAL_OUTER_MODULE;
 
   if(alpide_data.size() < ob_master_idx+num_ob_chips) {
     std::cerr << "Error: too few entries left to fix busy count for OB master " << std::endl;
-    exit(-1);
+    //exit(-1);
   }
 
   // Just average it instead of subtracting the number from the slaves
