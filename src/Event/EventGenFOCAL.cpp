@@ -50,9 +50,9 @@ EventGenFOCAL::EventGenFOCAL(sc_core::sc_module_name name,
   if(mRandomHitGeneration) {
     initRandomHitGen(settings);
   } else {
-    if(mSimType == "focal" && mRandomClusterGeneration) {
-      throw std::runtime_error("Random cluster generation for FOCAL MC sim (data includes clusters)");
-    }
+    //if(mSimType == "focal" && mRandomClusterGeneration) {
+    //  throw std::runtime_error("Random cluster generation for FOCAL MC sim (data includes clusters)");
+    //}
     initMonteCarloHitGen(settings);
   }
 
@@ -861,7 +861,7 @@ void EventGenFOCAL::generateMonteCarloEventData(uint64_t event_time_ns,
     const PixelHit &pix = *digit_it;
 
     if(mRandomClusterGeneration) {
-      std::cout << "starting random cluster generation " << std::endl;
+      //std::cout << "starting random cluster generation " << std::endl;
 
       // Create random cluster around pixel hit
 
