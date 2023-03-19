@@ -167,26 +167,43 @@ void FocalDetector::buildDetector(const FocalDetectorConfig& config,
       // and add them to a map of chip id vs Alpide chip object.
       auto new_chips = stave.getChips();
 
-      for(unsigned int link_num = 0; link_num < stave.numDataLinks(); link_num++) {
-        stave.socket_data_out[link_num].bind(RU.s_alpide_data_input[link_num]);
+      if(lay_id < 2) {
 
-        if(lay_id < 3) {
-          // Inner Barrel
-          RU.s_serial_data_input[link_num](new_chips[link_num]->s_serial_data_out_exp);
-          RU.s_serial_data_trig_id[link_num](new_chips[link_num]->s_serial_data_trig_id_exp);
-        } else {
+        std::cout << "Binding links on stave id " << sta_id << " for " << stave.numDataLinks() << " data links in stave"<< std::endl;;
 
-          // Error? We should never get here for FoCal...
-          std::cout << "ERROR: accessing Focal layer " << lay_id << std::endl;
-
-          // Outer Barrel. Only master chips have data links to RU
-          if(new_chips.size() != stave.numDataLinks()*7) {
-            throw std::runtime_error("OB stave created with incorrect number of chips.");
-          }
-
-          RU.s_serial_data_input[link_num](new_chips[link_num*7]->s_serial_data_out_exp);
-          RU.s_serial_data_trig_id[link_num](new_chips[link_num*7]->s_serial_data_trig_id_exp);
+        if(stave.numDataLinks()!=RU.s_alpide_data_input.size()){
+          std::cout << "WARNING: Stave data output and RU data input have different size ("<<stave.numDataLinks()<<"!="<<RU.s_alpide_data_input.size()<<")"<<std::endl;
         }
+
+        for(unsigned int link_num = 0; link_num < stave.numDataLinks(); link_num++) {
+          std::cout <<"\tData out: link id "<<link_num <<std::endl;
+          stave.socket_data_out[link_num].bind(RU.s_alpide_data_input[link_num]);
+
+          // Inner Stave
+          if(sta_id%Focal::STAVES_PER_QUADRANT<Focal::INNER_STAVES_PER_QUADRANT){
+            
+            if(link_num<Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS){
+              std::cout <<"\tInner mode: link id "<<link_num <<std::endl;
+              RU.s_serial_data_input[link_num](new_chips[link_num]->s_serial_data_out_exp);
+              RU.s_serial_data_trig_id[link_num](new_chips[link_num]->s_serial_data_trig_id_exp);
+            } else if (link_num==Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS){
+              std::cout <<"\tOuter mode (3): link id "<<link_num <<std::endl;
+              RU.s_serial_data_input[link_num]  (new_chips[Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS]->s_serial_data_out_exp);
+              RU.s_serial_data_trig_id[link_num](new_chips[Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS]->s_serial_data_trig_id_exp);
+            } else if (link_num== (Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS + Focal_I3_I3_O3_O6::OUTERGROUPS_O3)){
+              std::cout <<"\tOuter mode (6): link id "<<link_num <<std::endl;
+              RU.s_serial_data_input[link_num]  (new_chips[Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS + Focal_I3_I3_O3_O6::OUTERGROUPS_O3*Focal_Outer3::CHIPS]->s_serial_data_out_exp);
+              RU.s_serial_data_trig_id[link_num](new_chips[Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS + Focal_I3_I3_O3_O6::OUTERGROUPS_O3*Focal_Outer3::CHIPS]->s_serial_data_trig_id_exp);
+            }
+          } else {
+              std::cout <<"\tOuter mode (3): link id "<<link_num <<std::endl;
+              RU.s_serial_data_input[link_num](   new_chips[Focal_Outer3::CHIPS*link_num]->s_serial_data_out_exp);
+              RU.s_serial_data_trig_id[link_num]( new_chips[Focal_Outer3::CHIPS*link_num]->s_serial_data_trig_id_exp);
+          }
+        } 
+      } else {
+        // Error? We should never get here for FoCal...
+        std::cout << "ERROR: accessing Focal layer " << lay_id << std::endl;
       }
 
       for(auto chip_it = new_chips.begin(); chip_it != new_chips.end(); chip_it++) {

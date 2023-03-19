@@ -204,6 +204,9 @@ namespace FocalStringGroup {
       return mChips;
     }
 
+    std::shared_ptr<Alpide> getChip(unsigned int ichip){return mChips.at(ichip);}
+
+
     ControlResponsePayload processCommand(ControlRequestPayload const &request);
 
   private:

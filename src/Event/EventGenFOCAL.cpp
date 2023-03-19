@@ -409,13 +409,13 @@ void EventGenFOCAL::fillPhysicsEventRootFile(uint64_t t_now, uint64_t t_delta,
     unsigned int chip_id = Focal::CUMULATIVE_CHIP_COUNT_AT_LAYER[layer];
     for(unsigned int stave = 0; stave < mDetectorConfig.layer[layer].num_staves; stave++) {
       for(unsigned int stave_chip = 0; stave_chip < Focal::CHIPS_PER_STRING; stave_chip++) {
-	if(chip_hits[chip_id]!=0){
-	  mPhysicsEventData.layerId.push_back(layer);
-	  mPhysicsEventData.staveId.push_back(stave);
-	  mPhysicsEventData.staveChipId.push_back(stave_chip);
-	  mPhysicsEventData.chipId.push_back(chip_id);
-	  mPhysicsEventData.nHits.push_back(chip_hits[chip_id]);
-	}
+        if(chip_hits[chip_id]!=0){
+          mPhysicsEventData.layerId.push_back(layer);
+          mPhysicsEventData.staveId.push_back(stave);
+          mPhysicsEventData.staveChipId.push_back(stave_chip);
+          mPhysicsEventData.chipId.push_back(chip_id);
+          mPhysicsEventData.nHits.push_back(chip_hits[chip_id]);
+        }
         chip_id++;
       }
     }

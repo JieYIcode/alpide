@@ -54,6 +54,7 @@ Detector::DetectorPosition Focal::Focal_global_chip_id_to_position(unsigned int 
   unsigned int module_id = 0;
   unsigned int module_chip_id = 0;
 
+  //unsigned int _gcid = global_chip_id;
 
   layer_id = global_chip_id/CHIPS_PER_LAYER;
   global_chip_id -= layer_id*CHIPS_PER_LAYER;
@@ -65,23 +66,30 @@ Detector::DetectorPosition Focal::Focal_global_chip_id_to_position(unsigned int 
 
   if(stave_in_quadrant < INNER_STAVES_PER_QUADRANT) {
     // Focal Inner Stave
-    if(global_chip_id >= INNER_MODULES_PER_INNER_STAVE*INNER_CHIPS_PER_FOCAL_INNER_MODULE) {
+    if(global_chip_id >= Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS) {
       //outer modules
-      global_chip_id -= INNER_CHIPS_PER_FOCAL_INNER_MODULE*INNER_MODULES_PER_INNER_STAVE;
-      module_id = global_chip_id / OUTER_CHIPS_PER_FOCAL_INNER_MODULE;
-      global_chip_id -= module_id*OUTER_CHIPS_PER_FOCAL_INNER_MODULE;
+      global_chip_id -= Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS;
+      if(global_chip_id>=Focal_Outer3::CHIPS){
+        module_id = 3;
+        global_chip_id -= Focal_Outer3::CHIPS;
+      } else {
+        module_id = 2;
+      }
+
     } else {
       //inner modules
-      module_id = global_chip_id / INNER_CHIPS_PER_FOCAL_INNER_MODULE;
-      global_chip_id -= module_id*INNER_CHIPS_PER_FOCAL_INNER_MODULE;
+      module_id = global_chip_id / Focal_Inner3::CHIPS;
+      global_chip_id -= module_id*Focal_Inner3::CHIPS;
     }
   } else {
     // Focal Outer Stave
-    module_id = global_chip_id / OUTER_CHIPS_PER_FOCAL_OUTER_MODULE;
-    global_chip_id -= module_id * OUTER_CHIPS_PER_FOCAL_OUTER_MODULE;
+    module_id = global_chip_id / Focal_Outer3::CHIPS;
+    global_chip_id -= module_id * Focal_Outer3::CHIPS;
   }
 
   module_chip_id = global_chip_id;
+
+  //std::cout <<_gcid<<"\t"<<layer_id<<"\t"<<stave_id<<"\t"<<module_id<<"\t"<<module_chip_id<<std::endl;
 
   Detector::DetectorPosition position = {layer_id,
                                          stave_id,

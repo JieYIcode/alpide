@@ -167,12 +167,12 @@ FocalString_O3_O6_O6::FocalString_O3_O6_O6(sc_core::sc_module_name const &name,
 
     // Bind incoming control sockets to processCommand() in respective FocalObModule objects
     // Note: There is only one control link in this stave
-    socket_control_in[igroup].register_transport(std::bind(&FocalStringGroup::FocalStringGroup_O6::processCommand,
+    socket_control_in[igroup+Focal_O3_O6_O6::O3_GROUPS].register_transport(std::bind(&FocalStringGroup::FocalStringGroup_O6::processCommand,
                                                       mOuterModule_O6[igroup],
                                                       std::placeholders::_1));
 
     // Forward data from HalfModule object to StaveInterface
-    mOuterModule_O6[igroup]->socket_data_out(socket_data_out[igroup]);
+    mOuterModule_O6[igroup]->socket_data_out(socket_data_out[igroup+Focal_O3_O6_O6::O3_GROUPS]);
   }
 }
 
@@ -264,7 +264,7 @@ FocalString_I3_I3_O3_O6::FocalString_I3_I3_O3_O6(sc_core::sc_module_name const &
 
     // Forward data from chips in FocalIbModule object to StaveInterface
     for(unsigned int link_id = 0; link_id < Focal_Inner3::CHIPS; link_id++){
-      mInnerModule[i]->socket_data_out[link_id](socket_data_out[link_id]);
+      mInnerModule[i]->socket_data_out[link_id](socket_data_out[pos.module_id*Focal_Inner3::CHIPS+link_id]);
     }
 
   }
@@ -296,7 +296,7 @@ FocalString_I3_I3_O3_O6::FocalString_I3_I3_O3_O6(sc_core::sc_module_name const &
                                                       mOuterModule0[i],
                                                       std::placeholders::_1));
     // Forward data from HalfModule object to StaveInterface
-    mOuterModule0[i]->socket_data_out(socket_data_out[i_ctrl]);
+    mOuterModule0[i]->socket_data_out(socket_data_out[Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS]);
 
   }
 
@@ -326,7 +326,7 @@ FocalString_I3_I3_O3_O6::FocalString_I3_I3_O3_O6(sc_core::sc_module_name const &
                                                       mOuterModule1[i],
                                                       std::placeholders::_1));
     // Forward data from HalfModule object to StaveInterface
-    mOuterModule1[i]->socket_data_out(socket_data_out[i_ctrl]);
+    mOuterModule1[i]->socket_data_out(socket_data_out[Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS+Focal_I3_I3_O3_O6::OUTERGROUPS_O3]);
 
   }
 }

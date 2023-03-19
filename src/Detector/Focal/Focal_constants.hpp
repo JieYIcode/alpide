@@ -10,7 +10,6 @@
 #define FOCAL_CONSTANTS_HPP
 
 #include "Alpide/alpide_constants.hpp"
-
 // 
 namespace Focal_Inner3 {
   static const unsigned int CHIPS = 3;
@@ -114,6 +113,7 @@ namespace Focal {
   static const unsigned int MODULES_PER_INNER_STAVE = INNER_MODULES_PER_INNER_STAVE+OUTER_MODULES_PER_INNER_STAVE;
   static const unsigned int MODULES_PER_OUTER_STAVE = OUTER_MODULES_PER_OUTER_STAVE;
 
+  static const unsigned int CHIPS = CHIPS_PER_LAYER * N_LAYERS;
 
   //static const unsigned int MODULES_PER_INNER_STAVE = 2; // 8 IB chips + 7 OB chips
   //static const unsigned int MODULES_PER_OUTER_STAVE = 3; // 5 + 5 + 5 OB chips
