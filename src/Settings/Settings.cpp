@@ -59,7 +59,11 @@ QSettings *getSimSettings(const char *fileName) {
 void setDefaultSimSettings(QSettings *readoutSimSettings) {
   QMap<QString, QString> defaultSettings;
 
+
   // Default settings map
+  defaultSettings["output_dir_prefix"] = DEFAULT_OUTPUT_DIR_PREFIX;
+
+
   defaultSettings["data_output/write_vcd"] = DEFAULT_DATA_OUTPUT_WRITE_VCD;
   defaultSettings["data_output/write_vcd_clock"] = DEFAULT_DATA_OUTPUT_WRITE_VCD_CLOCK;
   defaultSettings["data_output/write_event_csv"] = DEFAULT_DATA_OUTPUT_WRITE_EVENT_CSV;

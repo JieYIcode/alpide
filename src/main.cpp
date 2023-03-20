@@ -193,6 +193,7 @@ bool create_output_dir(const QSettings* settings, std::string& output_path)
   std::string output_dir_str;
 
   output_dir_prefix_str = settings->value("output_dir_prefix").toString().toStdString();
+  std::cout << "User set output directory:"<< output_dir_prefix_str <<std::endl;
 
   QDir output_prefix_dir(output_dir_prefix_str.c_str());
 

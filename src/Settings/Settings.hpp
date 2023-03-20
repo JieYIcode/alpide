@@ -19,6 +19,7 @@
 #include <QDir>
 #include <QString>
 
+#define DEFAULT_OUTPUT_DIR_PREFIX "sim_output"
 
 #define DEFAULT_DATA_OUTPUT_WRITE_VCD "false"
 #define DEFAULT_DATA_OUTPUT_WRITE_VCD_CLOCK "false"

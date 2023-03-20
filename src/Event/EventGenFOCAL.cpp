@@ -380,12 +380,13 @@ void EventGenFOCAL::initPhysicsEventRootFile(const QSettings *settings){
 
   mPhysicsEventTree = new TTree("mPhysicsEvents", "Physics event tree of AlpideSystemC simulation");
   mPhysicsEventTree->Branch("tDelta", &mPhysicsEventData.tDelta);
-  mPhysicsEventTree->Branch("globalNHits", &mPhysicsEventData.globalNHits);
-  mPhysicsEventTree->Branch("globalNLayer0", &mPhysicsEventData.globalNHitsLayer0);
-  mPhysicsEventTree->Branch("globalNLayer1", &mPhysicsEventData.globalNHitsLayer1);
+  mPhysicsEventTree->Branch("tNow", &mPhysicsEventData.tNow);
+  //mPhysicsEventTree->Branch("globalNHits", &mPhysicsEventData.globalNHits);
+  //mPhysicsEventTree->Branch("globalNLayer0", &mPhysicsEventData.globalNHitsLayer0);
+  //mPhysicsEventTree->Branch("globalNLayer1", &mPhysicsEventData.globalNHitsLayer1);
 
-  mPhysicsEventTree->Branch("layerId", &mPhysicsEventData.layerId);
-  mPhysicsEventTree->Branch("staveId", &mPhysicsEventData.staveId);
+  //mPhysicsEventTree->Branch("layerId", &mPhysicsEventData.layerId);
+  //mPhysicsEventTree->Branch("staveId", &mPhysicsEventData.staveId);
   mPhysicsEventTree->Branch("chipId", &mPhysicsEventData.chipId);
   mPhysicsEventTree->Branch("nHits", &mPhysicsEventData.nHits);
 

@@ -417,7 +417,11 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
         settings->setValue("output_dir_prefix", parser.value(outputDirPrefixOption));
       }
     } else {
-      settings->setValue("output_dir_prefix", "sim_output");
+        std::cout << settings->value("General/output_dir_prefix").toString().toStdString() << std::endl;
+        if(settings->value("General/output_dir_prefix").toString().toStdString().length()==0){
+          std::cout << "Output directory not set by user. Using default output directory."<<std::endl;
+          settings->setValue("General/output_dir_prefix", "sim_output");
+        }
     }
     
     if(parser.isSet(mcFocalInputFileOption)) {
