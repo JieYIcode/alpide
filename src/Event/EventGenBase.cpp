@@ -138,7 +138,7 @@ EventGenBase::createCluster(const PixelHit& pix,
         }
       }
 
-      // Check if pixel is not within the pixel matrix. If not we consider it part of the
+      // Check if pixel is not within the pixel matrix. If not we don't consider it part of the
       // cluster, but simply skip it since it does not have valid coords
       if(new_cluster_pixel.getCol() < 0 || new_cluster_pixel.getCol() >= N_PIXEL_COLS ||
          new_cluster_pixel.getRow() < 0 || new_cluster_pixel.getRow() >= N_PIXEL_ROWS)
