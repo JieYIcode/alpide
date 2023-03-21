@@ -1,7 +1,8 @@
 #include "FOCALDetectorAnalysis.hpp"
 
 void analysis(){
-    FOCALDetectorAnalysis *analysis = new FOCALDetectorAnalysis("../../sim_output/run_10/", 1000);
+
+    FOCALDetectorAnalysis *analysis = new FOCALDetectorAnalysis("/alf/data/focal/alpide_systemc/sim_output/run_0/", 25000);
     
     analysis->FillHitmap();
     analysis->AnalyseRULinks();

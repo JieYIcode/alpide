@@ -87,6 +87,7 @@ class FOCALDetectorAnalysis {
             gSystem->Exec(Form("mkdir %s/plots", fSimFolder.c_str())); 
             init();
         };
+
         void Draw();
         void FillHitmap();
         void AnalyseRULinks();
@@ -279,13 +280,19 @@ int FOCALDetectorAnalysis::ChipMode(int chipid){
 }
 
 void FOCALDetectorAnalysis::FillHitmap(){
+
+    
+    gInterpreter->GenerateDictionary("vector<int>", "vector");
+
+    std::string chainname = Form("%s/PhysicsEventData*.root", fSimFolder.c_str());
+    std::cout << "Starting to fill the hitmap from "<<chainname<<std::endl;
     if(fSimFolder.length()==0){
         std::cerr << "FOCALDetectorAnalysis: simulation folder not set. " << std::endl;
         return; 
     }
 
     fPhysicsChain = new TChain("mPhysicsEvents");
-    fPhysicsChain->Add(Form("%s/PhysicsEventData*.root", fSimFolder.c_str()));
+    fPhysicsChain->Add(Form("%s", chainname.c_str()));
     if(!fPhysicsChain->GetEntries()){
         std::cerr << "FOCALDetectorAnalysis: Could not open physics event data file. " << std::endl;
         return; 
@@ -304,10 +311,12 @@ void FOCALDetectorAnalysis::FillHitmap(){
     fPhysicsChain->SetBranchAddress("chipId", &id);
 
     std::vector<Long64_t> NChipHits(Focal::CHIPS, 0);
+
     
     std::cout << "Reading physics chain " << fPhysicsChain->GetName() <<"...";
-    for(unsigned int e=0;e<fPhysicsChain->GetEntries();e++){
+    for(unsigned int e=0;e<TMath::Min((Long_t) 2000,(Long_t)fPhysicsChain->GetEntries());e++){
         fPhysicsChain->GetEntry(e);
+	if(! (e%1000) ) std::cout<<e<<" / "<<fPhysicsChain->GetEntries()<<std::endl;
         unsigned int nevents = TMath::Min(n->size(),id->size());
         for(unsigned int i=0;i<nevents;i++){
             if( (unsigned int) id->at(i) < NChipHits.size() ) {
@@ -500,6 +509,7 @@ void FOCALDetectorAnalysis::FillChipIDs(){
 
 void FOCALDetectorAnalysis::init(){
 
+
     TH2Poly *hpoly;
     for(unsigned int l=0;l<=1;l++){
 
@@ -611,9 +621,11 @@ void FOCALDetectorAnalysis::CreateFOCALChipBins(TH2Poly* th2)
           } else {
             th2->AddBin(x_low+Focal::SHIFT_X_MM, -y_low, x_high+Focal::SHIFT_X_MM, -y_high);
           }
+                
+          fChipRadius.push_back( (x_high-x_low)*(x_high-x_low) + (y_high-y_low)*(y_high-y_low) );
+
         }
 
-        fChipRadius.push_back( (xhigh-xlow)*(xhigh-xlow) + (y_high-y_low)*(y_high-y_low) );
       }
     }
   }
