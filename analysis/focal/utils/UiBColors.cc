@@ -41,5 +41,31 @@ unsigned int uibColorIndexForEnergy(unsigned int energy){
     return 0;
 }
 
+unsigned int uibColorIndex(unsigned int number){
+    //return 4;
+    switch(number){
+        case 0:
+            return uibDigitalRed->GetNumber();
+        case 1:
+            return uibDigitalBlue->GetNumber();
+        case 2:
+            return uibDigitalGreen->GetNumber();
+        case 3:
+            return uibOrange->GetNumber();
+        case 4:
+            return 96;
+        case 5:
+            return 52;
+        case 6:
+            return kGreen+1;
+        case 7:
+            return kBlue;
+        case 8:
+            return ROOTBeer->GetNumber();
+        default:
+            return 1;
+    }
+    return 0;
+}
 
 

@@ -411,7 +411,6 @@ EventDigits *EventRootFocal::getNextAliROOTEvent(void)
 EventDigits *EventRootFocal::getNextROOTEvent(void)
 {
 
-  std::cout << "Getting next event "<< mEventCounter << " (current iEvent = "<< _iEvent<<")"<<std::endl; ;
  
   mEventDigits = new EventDigits();
 
@@ -424,6 +423,11 @@ EventDigits *EventRootFocal::getNextROOTEvent(void)
     mEventTree->GetEntry(mEntryCounter);
   }
 
+  //if(mEntryCounter>=mNumEvents){
+//return mEventDigits;
+//  }
+
+  std::cout << "Getting next event "<< mEventCounter <<" / " << mNumEvents <<std::endl; ;
   while(mEventCounter==_iEvent){
     if(_segment==1) {
         createHitsFromAliFOCALCellCM(_pixX, _pixY,1, 0, mEventDigits);
