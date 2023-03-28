@@ -61,6 +61,13 @@ namespace Focal_O3_O6_O6{
   static const unsigned int CTRL_LINKS = O3_GROUPS*Focal_Outer3::CTRL_LINKS + O6_GROUPS*Focal_Outer6::CTRL_LINKS;
 }
 
+namespace Focal_O3_O3_O3_O6{
+  static const unsigned int O3_GROUPS = 3;
+  static const unsigned int O6_GROUPS = 1;
+  static const unsigned int DATA_LINKS = O3_GROUPS*Focal_Outer3::DATA_LINKS + O6_GROUPS*Focal_Outer6::DATA_LINKS;
+  static const unsigned int CTRL_LINKS = O3_GROUPS*Focal_Outer3::CTRL_LINKS + O6_GROUPS*Focal_Outer6::CTRL_LINKS;
+}
+
 
 namespace Focal {
   static const unsigned int N_LAYERS = 2;
@@ -153,7 +160,7 @@ namespace Focal {
   static const double GAP_SIZE_Y_CELLS = GAP_SIZE_Y_MM/MACRO_CELL_SIZE_Y_MM;
 
   static const double SHIFT_X_MM = 12;
-  static const double SHIFT_Y_MM = 0;
+  static const double SHIFT_Y_MM = 6;
   
   static const double SHIFT_X_CELLS = SHIFT_X_MM/MACRO_CELL_SIZE_X_MM;
   static const double SHIFT_Y_CELLS = SHIFT_Y_MM/MACRO_CELL_SIZE_Y_MM;

@@ -652,8 +652,9 @@ bool global_cm_coords_to_chip_coords(const double global_cm_x, const double glob
   }
 
   // Skip hit if its y-coord falls above or beyond detector plane
-  if (macro_cell_y_mm > Focal::STAVES_PER_QUADRANT * Focal::STAVE_SIZE_Y_MM)
+  if (macro_cell_y_mm > Focal::STAVES_PER_QUADRANT * Focal::STAVE_SIZE_Y_MM + (int) (Focal::STAVES_PER_QUADRANT/Focal::STAVES_PER_PATCH)*Focal::SHIFT_Y_MM)
   {
+    std::cout << macro_cell_y_mm << ": Skip hit if its y-coord falls above or beyond detector plane. " <<std::endl;
     return false;
   }
 
@@ -676,11 +677,23 @@ bool global_cm_coords_to_chip_coords(const double global_cm_x, const double glob
     return false;
   }
 
+
+  unsigned int n_cooling_gaps_y=0;
+  if(macro_cell_y_mm>4.75) n_cooling_gaps_y++;
+  if(macro_cell_y_mm>13.65) n_cooling_gaps_y++;
+  if(macro_cell_y_mm>22.55) n_cooling_gaps_y++;
+  if(macro_cell_y_mm>31.45) n_cooling_gaps_y++;
+  if(macro_cell_y_mm>40.35) n_cooling_gaps_y++;
+
+  macro_cell_y_mm -= n_cooling_gaps_y*Focal::SHIFT_Y_MM;
+
+
   unsigned int stave_num_in_quadrant = macro_cell_y_mm / Focal::STAVE_SIZE_Y_MM;
 
   // Skip stave if it is not included in the simulation
   if (stave_num_in_quadrant >= staves_per_quadrant)
   {
+    std::cout << macro_cell_y_mm <<", stave_num "<< stave_num_in_quadrant << ": Skip stave if it is not included in the simulation" << std::endl;
     return false;
   }
 

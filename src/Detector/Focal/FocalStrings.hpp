@@ -176,6 +176,23 @@ namespace FocalString {
     std::shared_ptr<FocalStringGroup::FocalStringGroup_O6> mOuterModule_O6[Focal_O3_O6_O6::O6_GROUPS];
   };
 
+  ///@brief Focal string consisting of 15 chips in total:
+  ///       5x "Focal IB string group" (5 x 3 OB chips) 
+  struct FocalString_O3_O3_O3_O6 : public ITS::StaveInterface
+  {
+    FocalString_O3_O3_O3_O6(sc_core::sc_module_name const &name,
+                    Detector::DetectorPosition pos,
+                    Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
+                    const Detector::DetectorConfigBase& cfg);
+    void addTraces(sc_trace_file *wf, std::string name_prefix) const;
+    std::vector<std::shared_ptr<Alpide>> getChips(void) const;
+
+  private:
+    std::shared_ptr<FocalStringGroup::FocalStringGroup_O3> mOuterModule_O3[Focal_O3_O3_O3_O6::O3_GROUPS];
+    std::shared_ptr<FocalStringGroup::FocalStringGroup_O6> mOuterModule_O6[Focal_O3_O3_O3_O6::O6_GROUPS];
+  };
+
+
 };
 
 #endif

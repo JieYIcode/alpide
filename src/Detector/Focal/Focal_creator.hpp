@@ -98,13 +98,13 @@ namespace Focal {
         // Create RU for Focal outer stave
         std::cout << "Creating outer RU: " << name << std::endl;
         // All 400 Mbps links
-        std::vector<bool> data_link_cfg(Focal_O3_O3_O3_O3_O3::DATA_LINKS, false);
+        std::vector<bool> data_link_cfg(Focal_O3_O3_O3_O6::DATA_LINKS, false);
 
         return new ReadoutUnit(ru_name.c_str(),
                                mLayerId,
                                stave_id_in_layer,
-                               Focal_O3_O3_O3_O3_O3::CTRL_LINKS,
-                               Focal_O3_O3_O3_O3_O3::DATA_LINKS,
+                               Focal_O3_O3_O3_O6::CTRL_LINKS,
+                               Focal_O3_O3_O3_O6::DATA_LINKS,
                                data_link_cfg,
                                mTriggerFilterTime,
                                mTriggerFilterEnabled,
@@ -164,7 +164,11 @@ namespace Focal {
         // Create Focal outer stave
         std::string stave_name = "FO_stave_" + coords_str;
         std::cout << "Creating outer stave: " << name << std::endl;
-        new_stave_ptr = new FocalString::FocalString_O3_O3_O3_O3_O3(stave_name.c_str(),
+        //new_stave_ptr = new FocalString::FocalString_O3_O3_O3_O3_O3(stave_name.c_str(),
+        //                                           pos,
+        //                                           &Focal::Focal_position_to_global_chip_id,
+        //                                           mConfig);
+        new_stave_ptr = new FocalString::FocalString_O3_O3_O3_O6(stave_name.c_str(),
                                                    pos,
                                                    &Focal::Focal_position_to_global_chip_id,
                                                    mConfig);
