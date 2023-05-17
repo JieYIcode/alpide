@@ -14,6 +14,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <algorithm>
 
 #include "TH2Poly.h"
 #include "TCanvas.h"
@@ -25,6 +26,7 @@
 #include "TSystem.h"
 #include "TEllipse.h"
 #include "TGraphAsymmErrors.h"
+#include "TPaletteAxis.h"
 
 #define CANVAS_WIDTH 1024
 #define CANVAS_HEIGHT 512
@@ -32,29 +34,55 @@
 #define NRADIUS_BINS 35
 #define MAX_RADIUS 700
 
-#define NEFFI_BINS 500
+#define NEFFI_BINS 100
 #define MAX_EFFI 1.001
-#define MIN_EFFI MAX_EFFI-0.5
+#define MIN_EFFI MAX_EFFI-0.1
 #define NETA_BINS 30
 #define MAX_ETA 6
 #define MIN_ETA 3
 
-#define FOCAL_X_MAX_MM 500
-#define FOCAL_Y_MAX_MM 500
+#define PIXEL_PLANE_MAX 550
+
+#define FOCAL_X_MAX_MM 550
+#define FOCAL_Y_MAX_MM 550
 
 #define FOCAL_X_MAX_CM (FOCAL_X_MAX_MM/10)
 #define FOCAL_Y_MAX_CM (FOCAL_Y_MAX_MM/10)
 
-#define FOCAL_N_BINS 500
+#define FOCAL_N_BINS 2000
 
 #define NDATARATE_BINS 100
 #define MIN_DATARATE 0
 #define MAX_DATARATE 1000
+#define MAX_DATARATE_SUM 100000
+#define N_DATARATE_SUM_BINS 50
+
+#define N_LAYERS 2
+
+static const bool draw_BARE =true;
+static const bool draw_CHIPID = false;
+static const bool draw_CHIPMODE = true;
+static const bool draw_FRAME_EFFICIENCY = true;
+static const bool draw_BUSYV = true;
+static const bool draw_BUSY = false;
+static const bool draw_DATARATE = true;
+static const bool draw_VALIDHITS = false;
+static const bool draw_OCCUPANCY = true;
+static const bool draw_HITS = false;
+
+static const bool excludeMostInnerChips=false;
 
 double Eta(double r, double z){
     return -TMath::Log(TMath::Tan(TMath::ATan2(r,z)/2));
 }
 
+// Comparator function to sort pairs
+// according to second value
+bool cmp(std::pair<int, int>& a,
+        std::pair<int, int>& b)
+{
+    return a.first < b.first;
+}
 
 class FOCALDetectorAnalysis {
 
@@ -70,6 +98,7 @@ class FOCALDetectorAnalysis {
         TLatex *fEtaText;
 
         ULong64_t fNEvents;
+        ULong64_t fNFrames;
         Double_t fSystemRate;
         Double_t fEventRate;
 
@@ -77,11 +106,17 @@ class FOCALDetectorAnalysis {
         std::vector<TH2Poly*> fFOCALPlane_Occupancy;
         std::vector<TH2Poly*> fFOCALPlane_Hits;
         std::vector<TH2Poly*> fFOCALPlane_Datarate;
+        std::vector<TH2D*> fFOCAL_DatarateLinks = std::vector<TH2D*>(N_LAYERS);
+        std::vector<TH2D*> fFOCAL_DatarateLinksTime = std::vector<TH2D*>(N_LAYERS);
+        std::vector<TH1D*> fFOCAL_DatarateSum = std::vector<TH1D*>(N_LAYERS);
         std::vector<TH2Poly*> fFOCALPlane_ChipModes;
         std::vector<TH2Poly*> fFOCALPlane_ChipIDs;
         std::vector<TH2Poly*> fFOCALPlane_BusyV;
         std::vector<TH2Poly*> fFOCALPlane_Busy;
         std::vector<TH2Poly*> fFOCALPlane_FrameEfficiency;
+
+        TH1D *fFramesWithBusyV;
+        TH1D *fFramesWithBusyV_cumulative;
 
         std::vector<TH2D*> fFOCALFrameEfficiency_vs_Radius;
         std::vector<TH2D*> fFOCALFrameEfficiency_vs_Eta;
@@ -101,9 +136,14 @@ class FOCALDetectorAnalysis {
         std::vector<double> fChipRadius;
         std::vector<double> fChipEta;
 
+        std::map<int, int> fBusyVFrames;
+
         //this map links the RU data links to the global chip id bins
         // map[RU, link] => {global chip id, nchips}
         std::vector< std::map< std::pair<int,int> , std::pair<int, int>> > fRULink2GlobalBin;
+        //this map links the RU data links to the global chip id bins
+        // map[RU, link] => {global link id, nchips}
+        std::vector< std::map< std::pair<int,int> , std::pair<int, int>> > fRULink2GlobalLinkID;
 
         void CreateFOCALChipBins(TH2Poly* th2);
 
@@ -120,6 +160,9 @@ class FOCALDetectorAnalysis {
         TCanvas *cOcc;
         TCanvas *cChipModes;
         TCanvas *cDataRate;
+        TCanvas *cDataRateLinks;
+        TCanvas *cDataRateLinksTime;
+        TCanvas *cDataRateSum;
         TCanvas *cBusyV;
         TCanvas *cBusy;
         TCanvas *cFrameEff;
@@ -134,6 +177,18 @@ class FOCALDetectorAnalysis {
         FOCALDetectorAnalysis(std::string simfolder, ULong64_t nevents) :fSimFolder(simfolder), fNEvents(nevents){
             std::cout << "FOCALDetectorAnalysis for folder "<<fSimFolder<<std::endl;
             gSystem->Exec(Form("mkdir %s/plots", fSimFolder.c_str())); 
+            init();
+        };
+        FOCALDetectorAnalysis(
+            std::string simfolder, 
+            ULong64_t nevents, 
+            ULong64_t system_rate, 
+            ULong64_t event_rate) 
+        :fSimFolder(simfolder), fNEvents(nevents),fSystemRate(system_rate),fEventRate(event_rate)
+        {
+            std::cout << "FOCALDetectorAnalysis for folder "<<fSimFolder<<std::endl;
+            gSystem->Exec(Form("mkdir %s/plots", fSimFolder.c_str())); 
+            SetRates(fSystemRate, fEventRate);
             init();
         };
 
@@ -152,12 +207,22 @@ class FOCALDetectorAnalysis {
         TGraphAsymmErrors *GraphDataRate_vs_Eta(int layer){return fGFOCALDataRate_vs_Eta.at(layer);}
 
         void SetNEvents(ULong64_t number_of_events)         {fNEvents=number_of_events;}
-        ULong64_t GetNEvents(ULong64_t number_of_events)    {return fNEvents;}
+        ULong64_t GetNEvents()    {return fNEvents;}
         void SetSimFolder(std::string sim_folder)           {fSimFolder=sim_folder;}
         std::string GetSimFolder()                          {return fSimFolder;}
 
         void SetSystemRate(Double_t system_rate){fSystemRate=system_rate;}
         void SetEventRate(Double_t event_rate){fEventRate=event_rate;}
+
+
+        void SetRates(Double_t system_rate,Double_t event_rate){
+            SetSystemRate(system_rate);
+            SetEventRate(event_rate);
+            fNFrames=(ULong64_t) ( ( (double) (fNEvents * fEventRate) ) / fSystemRate ); 
+            std::cout << "System rate:\t" << fSystemRate<<std::endl;
+            std::cout << "Event rate:\t" << fEventRate<<std::endl;
+            std::cout << "N__Frames:\t" << fNFrames << std::endl;
+        }
 
         Double_t GetSystemRate(){return fSystemRate;}
         Double_t GetEventRate(){return fEventRate;}
@@ -183,7 +248,7 @@ void FOCALDetectorAnalysis::initChipMode(){
 void FOCALDetectorAnalysis::analyseRULinks(int layer, int ru, int mode /*true:: inner, false: outer*/){
     int NLinks;
     if(mode) NLinks = Focal_I3_I3_O3_O6::DATA_LINKS;
-    else NLinks = Focal_O3_O3_O3_O3_O3::DATA_LINKS;
+    else NLinks = Focal_O3_O3_O3_O6::DATA_LINKS;
 
     std::vector<UInt_t> NEntries = std::vector<UInt_t>(NLinks, 0);
     std::vector<ULong_t> DataRates = std::vector<ULong_t>(NLinks, 0);
@@ -204,16 +269,21 @@ void FOCALDetectorAnalysis::analyseRULinks(int layer, int ru, int mode /*true:: 
 
     UInt_t link;
     ULong_t rate;
+    ULong_t trigtime;
     dataratetree->SetBranchStatus("*",0);
     dataratetree->SetBranchStatus("link", 1);
     dataratetree->SetBranchStatus("rate", 1);
+    dataratetree->SetBranchStatus("time", 1);
     dataratetree->SetBranchAddress("rate", &rate);
     dataratetree->SetBranchAddress("link", &link);
+    dataratetree->SetBranchAddress("time", &trigtime);
     for(unsigned int e=0;e<dataratetree->GetEntries();e++){
         dataratetree->GetEntry(e);
         if(link<NEntries.size() && link<DataRates.size()){
             NEntries.at(link)++;
             DataRates.at(link)+=rate;
+            fFOCAL_DatarateLinks.at(layer)->Fill(fRULink2GlobalLinkID.at(layer)[{ru,link}].first, rate);
+            fFOCAL_DatarateLinksTime.at(layer)->SetBinContent(trigtime/((int)fSystemRate+0.5)+1,fRULink2GlobalLinkID.at(layer)[{ru,link}].first+1,rate);
         }
     }
 
@@ -236,12 +306,18 @@ void FOCALDetectorAnalysis::analyseRULinks(int layer, int ru, int mode /*true:: 
 
     std::vector<UInt_t> NBusyV = std::vector<UInt_t>(NLinks, 0);
     ULong_t busyvlink;
+    ULong_t trigid;
     unsigned char busyvchipid;
     busyvtree->SetBranchAddress("linkId", &busyvlink);
     busyvtree->SetBranchAddress("chipId", &busyvchipid);
+    busyvtree->SetBranchAddress("triggerId", &trigid);
     for(unsigned int e=0;e<busyvtree->GetEntries();e++){
         busyvtree->GetEntry(e);
+        if(excludeMostInnerChips && (ru%Focal::STAVES_PER_QUADRANT)<=2 && busyvlink==0) {
+            continue;
+        }
         NBusyV.at((int) busyvlink)++;
+        fBusyVFrames[trigid]++;
     }
     
     for( int i=0;i<NLinks;i++){
@@ -251,7 +327,8 @@ void FOCALDetectorAnalysis::analyseRULinks(int layer, int ru, int mode /*true:: 
             
             //fFOCALPlane_BusyV.at(layer)->SetBinContent(1+gbin, ((double)NBusyV.at(i))/fNEvents);
 
-            double busyvrate =  ((double)NBusyV.at(i))/(fNEvents*fEventRate/fSystemRate);
+            double busyvrate =  ( (double)NBusyV.at(i))/fNFrames ;
+            //std::cout << (double)NBusyV.at(i) << "\t" << fNFrames << std::endl;
             fFOCALPlane_BusyV.at(layer)->SetBinContent(1+gbin, busyvrate);
 
             double frameeffi =  1- busyvrate;
@@ -278,6 +355,11 @@ void FOCALDetectorAnalysis::analyseRULinks(int layer, int ru, int mode /*true:: 
 
         fGFOCALFrameEfficiency_vs_Radius.push_back(new TGraphAsymmErrors());
         fGFOCALFrameEfficiency_vs_Eta.push_back(new TGraphAsymmErrors());
+
+        fGFOCALDataRate_vs_Eta.at(layer)->SetName(Form("G%s", fFOCALDataRate_vs_Eta.at(layer)->GetName()));
+        fGFOCALDataRate_vs_Radius.at(layer)->SetName(Form("G%s", fFOCALDataRate_vs_Radius.at(layer)->GetName()));
+        fGFOCALFrameEfficiency_vs_Eta.at(layer)->SetName(Form("G%s", fFOCALFrameEfficiency_vs_Eta.at(layer)->GetName()));
+        fGFOCALFrameEfficiency_vs_Radius.at(layer)->SetName(Form("G%s", fFOCALFrameEfficiency_vs_Radius.at(layer)->GetName()));
 
 
         for( int bin=1;bin<=fFOCALDataRate_vs_Radius.at(layer)->GetNbinsX();bin++){
@@ -422,7 +504,7 @@ void FOCALDetectorAnalysis::analyseRULinks(int layer, int ru, int mode /*true:: 
         for( int _chips=0;_chips < fRULink2GlobalBin.at(layer)[{ru, i}].second;_chips++){
             unsigned int gbin = fRULink2GlobalBin.at(layer)[{ru, i}].first + _chips;
             gbin -= Focal::CUMULATIVE_CHIP_COUNT_AT_LAYER[layer];
-            fFOCALPlane_Busy.at(layer)->SetBinContent(1+gbin,  ((double)NBusy.at(i))/fNEvents);
+            fFOCALPlane_Busy.at(layer)->SetBinContent(1+gbin,  ((double)NBusy.at(i))/fNFrames);
         }
     }
 
@@ -436,13 +518,50 @@ void FOCALDetectorAnalysis::AnalyseRULinks(){
             bool mode = (ru%Focal::STAVES_PER_QUADRANT < Focal::INNER_STAVES_PER_QUADRANT);
             analyseRULinks(layer, ru, mode);
         }
+        for(int itime=1;itime<=fFOCAL_DatarateLinksTime.at(layer)->GetNbinsX();itime++){
+            double dataratesum = 0;
+            for( int ilink=1;ilink<=fFOCAL_DatarateLinksTime.at(layer)->GetNbinsY();ilink++){
+                dataratesum+=fFOCAL_DatarateLinksTime.at(layer)->GetBinContent(itime, ilink);
+            }
+            if(dataratesum) fFOCAL_DatarateSum.at(layer)->Fill(dataratesum);
+        }
     }
+
+
+    int last_trig = 0;
+    for(auto busyframe : fBusyVFrames){
+        if(busyframe.first-last_trig>1){
+            for(unsigned int i=last_trig+1;i<busyframe.first;i++){
+                fBusyVFrames[i]=0;
+            }
+        }
+        last_trig = busyframe.first;
+    }
+
+
+    for(auto busyframe : fBusyVFrames){
+        //std::cout << busyframe.first <<"\t"<< busyframe.second << std::endl;
+        fFramesWithBusyV->Fill(busyframe.second);
+    }
+
+    int sum = 0;
+    for(unsigned int i=1;i<=fFramesWithBusyV->GetNbinsX();i++){
+        sum += fFramesWithBusyV->GetBinContent(i);
+        fFramesWithBusyV_cumulative->SetBinContent(i,((float) sum)/fFramesWithBusyV->GetEntries());
+        fFramesWithBusyV_cumulative->SetBinError(i, 0);
+    }
+
+
 }
 
 void FOCALDetectorAnalysis::initRULinks(){
     fRULink2GlobalBin = std::vector< std::map< std::pair<int,int> , std::pair<int, int>> > (2,  std::map< std::pair<int,int> , std::pair<int, int>>()  );
+    fRULink2GlobalLinkID = std::vector< std::map< std::pair<int,int> , std::pair<int, int>> > (2,  std::map< std::pair<int,int> , std::pair<int, int>>()  );
     int global_id=0;
+    int NLinks = 0;
     for(int layer=0;layer<2;layer++){
+        
+        int global_link_id = 0;
         for(unsigned int ru=0;ru<4*Focal::STAVES_PER_QUADRANT;ru++){
             
             if(ru%Focal::STAVES_PER_QUADRANT < Focal::INNER_STAVES_PER_QUADRANT){
@@ -451,13 +570,41 @@ void FOCALDetectorAnalysis::initRULinks(){
                 }
                 fRULink2GlobalBin.at(layer)[{ru,Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::DATA_LINKS}] = {global_id+Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::DATA_LINKS, Focal_Outer3::CHIPS};
                 fRULink2GlobalBin.at(layer)[{ru,Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::DATA_LINKS+Focal_I3_I3_O3_O6::OUTERGROUPS_O3*Focal_Outer3::DATA_LINKS}] = {global_id+Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::DATA_LINKS+Focal_I3_I3_O3_O6::OUTERGROUPS_O3*Focal_Outer3::CHIPS, Focal_Outer6::CHIPS};
+                NLinks+=Focal_I3_I3_O3_O6::DATA_LINKS;
+                for(unsigned int dl=0;dl<Focal_I3_I3_O3_O6::DATA_LINKS;dl++){
+                    fRULink2GlobalLinkID.at(layer)[{ru,dl}] = {global_link_id, 1};
+                    global_link_id++;
+                }
             } else {
-                for(unsigned int link=0;link<Focal_O3_O3_O3_O3_O3::GROUPS*Focal_Outer3::DATA_LINKS;link++){
+                for(unsigned int link=0;link<Focal_O3_O3_O3_O6::O3_GROUPS*Focal_Outer3::DATA_LINKS;link++){
                     fRULink2GlobalBin.at(layer)[{ru,link}] = {global_id+link*Focal_Outer3::CHIPS, Focal_Outer3::CHIPS};
+                }
+                for(unsigned int link=Focal_O3_O3_O3_O6::O3_GROUPS*Focal_Outer3::DATA_LINKS;link<Focal_O3_O3_O3_O6::O3_GROUPS*Focal_Outer3::DATA_LINKS+Focal_O3_O3_O3_O6::O6_GROUPS*Focal_Outer6::DATA_LINKS;link++){
+                    fRULink2GlobalBin.at(layer)[{ru,link}] = {global_id+link*Focal_Outer3::CHIPS, Focal_Outer6::CHIPS};
+                }
+                NLinks+=Focal_O3_O3_O3_O6::DATA_LINKS;
+                for(unsigned int dl=0;dl<Focal_O3_O3_O3_O6::DATA_LINKS;dl++){
+                    fRULink2GlobalLinkID.at(layer)[{ru,dl}] = {global_link_id, 1};
+                    global_link_id++;
                 }
             }
             global_id+=Focal::CHIPS_PER_FOCAL_STAVE;
         }
+        fFOCAL_DatarateLinks.at(layer) = new TH2D(
+                                                Form("fFOCAL_DatarateLinks_Layer%d", layer),
+                                                Form("FOCAL Pixel Layer %d Data Rates (trigger=%d#mus,%.1f MHz pp);Link ID;Data rate (Mb/s)", layer, (int) fSystemRate/1000, 1000./fEventRate ),
+                                                global_link_id,
+                                                0,
+                                                global_link_id, MAX_DATARATE/4,0, MAX_DATARATE
+                                        );
+        std::cout << "histo with "<< (int) fNFrames*1.1<<" bins"<<std::endl;
+        fFOCAL_DatarateLinksTime.at(layer) = new TH2D(
+                                                Form("fFOCAL_DatarateLinksTime_Layer%d", layer),
+                                                Form("FOCAL Pixel Layer %d Data Rates vs Time;Time [#mus];Link ID;Data rate [Mb/s]", layer),
+                                                (int) fNFrames*1.1,
+                                                0,
+                                                (int) fNFrames*1.1, global_link_id,0, global_link_id
+        );
     }
 
 
@@ -486,7 +633,9 @@ int FOCALDetectorAnalysis::ChipMode(int chipid){
     }
     else {
         // outer mode master
-        if(!(string_chipid%3))
+        if(!(string_chipid%3) && (string_chipid%Focal::CHIPS_PER_FOCAL_STAVE<9))
+            return 1;
+        else if(string_chipid%Focal::CHIPS_PER_FOCAL_STAVE==9)
             return 1;
         // outer mode slave
         else return 2;
@@ -505,8 +654,8 @@ void FOCALDetectorAnalysis::FillValidHits(){
     hittree->SetBranchAddress("layer", &layer);
     for(int e=0;e<hittree->GetEntries();e++){
         hittree->GetEntry(e);
-        if(!valid) fFOCALInvalidHits.at(layer)->Fill(X,Y);
-        if(valid) fFOCALValidHits.at(layer)->Fill(X,Y);
+        if(!valid) fFOCALInvalidHits.at(layer)->Fill(X*10.,Y*10.);
+        if(valid) fFOCALValidHits.at(layer)->Fill(X*10.,Y*10.);
     }
     hitfile->Close();
     delete hitfile;
@@ -532,7 +681,9 @@ void FOCALDetectorAnalysis::FillHitmap(){
     
         std::cout<<chainname<<std::endl;
         chainname = Form("%s/PhysicsEventData_%d.root", fSimFolder.c_str(), i);
-        fPhysicsChain->Add(Form("%s", chainname.c_str()));
+        if(!gSystem->AccessPathName(chainname.c_str())){
+            fPhysicsChain->Add(Form("%s", chainname.c_str()));
+        }
     }
     if(!fPhysicsChain->GetEntries()){
         std::cerr << "FOCALDetectorAnalysis: Could not open physics event data file. " << std::endl;
@@ -558,14 +709,14 @@ void FOCALDetectorAnalysis::FillHitmap(){
     ULong64_t NHits = 0;
 
     Long64_t NChainEvents = fPhysicsChain->GetEntries();
-    NChainEvents = 1000;
+    //NChainEvents = 1000;
 
     std::cout << "Reading physics chain " << fPhysicsChain->GetName() << " with "<<NChainEvents <<" entries ...";
     for(unsigned int e=0;e<NChainEvents;e++){
         if(! (e%1000) ) std::cout<<e<<" / "<<NChainEvents<<std::endl;
         fPhysicsChain->GetEntry(e);
-        if(tNow<50000) continue;
-        if(tNow>=100000) continue;
+        if(tNow>fNFrames*fSystemRate) break;
+        //if(tNow>=50000) continue;
         unsigned int nevents = TMath::Min(n->size(),id->size());
         for(unsigned int i=0;i<nevents;i++){
             if( (unsigned int) id->at(i) < NChipHits.size() ) {
@@ -589,7 +740,7 @@ void FOCALDetectorAnalysis::FillHitmap(){
 
 
     if(NChainEvents) {
-        std::cout << "Scaling by " << 1./NChainEvents << std::endl;
+        std::cout << "Scaling by " << 1./(fNFrames*fSystemRate) <<" / us " << std::endl;
         std::cout << fFOCALPlane_Hits.at(0)->GetMaximum() <<std::endl;
         std::cout << NHits <<std::endl;
 
@@ -601,8 +752,8 @@ void FOCALDetectorAnalysis::FillHitmap(){
         //fFOCALPlane_Occupancy.at(0)->Scale(1./NChainEvents);
         //fFOCALPlane_Occupancy.at(1)->Scale(1./NChainEvents);
 
-        fFOCALPlane_Occupancy.at(0)->Scale(1./((double) (N_PIXEL_COLS*N_PIXEL_ROWS)));
-        fFOCALPlane_Occupancy.at(1)->Scale(1./((double) (N_PIXEL_COLS*N_PIXEL_ROWS)));
+        fFOCALPlane_Occupancy.at(0)->Scale(100*1./(fNFrames*fSystemRate));
+        fFOCALPlane_Occupancy.at(1)->Scale(100*1./(fNFrames*fSystemRate));
     }
 
 
@@ -640,38 +791,51 @@ void FOCALDetectorAnalysis::DrawEtaCircle(int layer, double eta){
     fEtaText->SetTextColor(uibDigitalRed->GetNumber());
     fEtaText->DrawLatex(10+r*TMath::Cos(TMath::Pi()/4), 10+r*TMath::Cos(TMath::Pi()/4.), Form("#eta = %.1lf", eta));
 
-    
 }
 
 void FOCALDetectorAnalysis::Draw(){
 
-/*    
-    cBare = new TCanvas("cBare", "Bare Pixel Planes", CANVAS_WIDTH*1.2, CANVAS_HEIGHT);
+gStyle->SetPalette(kBird);
+
+if(draw_BARE){
+    cBare = new TCanvas("cBare", "Bare Pixel Planes", CANVAS_WIDTH*1.1, CANVAS_HEIGHT);
     cBare->Divide(2,1);
     for(unsigned int l=0;l<=1;l++){
         cBare->cd(l+1);
         fFOCALPlane_Bare.at(l)->Draw();
+        fFOCALPlane_Bare.at(l)->GetXaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+        fFOCALPlane_Bare.at(l)->GetYaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+        gPad->Modified();
+        gPad->Update();
     }
     cBare->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cBare->GetName()));
     cBare->SaveAs(Form("%s/plots/%s.pdf", fSimFolder.c_str(), cBare->GetName()));
     cBare->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cBare->GetName()));
     cBare->SaveAs(Form("%s/plots/%s.root", fSimFolder.c_str(), cBare->GetName()));
+}
 
-    cChipIDs = new TCanvas("cChipIds", "Chip IDs Pixel Planes", CANVAS_WIDTH*1.2, CANVAS_HEIGHT);
+if(draw_CHIPID){
+    cChipIDs = new TCanvas("cChipIds", "Chip IDs Pixel Planes", CANVAS_WIDTH*1.1, CANVAS_HEIGHT);
     gStyle->SetPalette(kLake);
     cChipIDs->Divide(2,1);
     for(unsigned int l=0;l<=1;l++){
         cChipIDs->cd(l+1);
         gPad->SetRightMargin(0.15);
         fFOCALPlane_ChipIDs.at(l)->Draw("COLZ L");
+        fFOCALPlane_ChipIDs.at(l)->GetXaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+        fFOCALPlane_ChipIDs.at(l)->GetYaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+        gPad->Modified();
+        gPad->Update();
     }
     cChipIDs->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cChipIDs->GetName()));
     cChipIDs->SaveAs(Form("%s/plots/%s.pdf", fSimFolder.c_str(), cChipIDs->GetName()));
     cChipIDs->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cChipIDs->GetName()));
     cChipIDs->SaveAs(Form("%s/plots/%s.root", fSimFolder.c_str(), cChipIDs->GetName()));
+}
 
+if(draw_CHIPMODE){
 
-    cChipModes = new TCanvas("cChipModes", "Chip Modes Pixel Planes", CANVAS_WIDTH*1.2, CANVAS_HEIGHT);
+    cChipModes = new TCanvas("cChipModes", "Chip Modes Pixel Planes", CANVAS_WIDTH*1.1, CANVAS_HEIGHT);
     gStyle->SetPalette(kLake);
     cChipModes->Divide(2,1);
     for(unsigned int l=0;l<=1;l++){
@@ -679,18 +843,24 @@ void FOCALDetectorAnalysis::Draw(){
 
         gPad->SetRightMargin(0.1);
         fFOCALPlane_ChipModes.at(l)->Draw("COLZ L");
-        DrawEtaCircle(l,5.5);
+        DrawEtaCircle(l,5.3);
         DrawEtaCircle(l,4);
         DrawEtaCircle(l,3.5);
         fFOCALPlane_ChipModes.at(l)->GetZaxis()->SetNdivisions(2);
         gPad->Modified();gPad->Update();
+        fFOCALPlane_ChipModes.at(l)->GetXaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+        fFOCALPlane_ChipModes.at(l)->GetYaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+        gPad->Modified();
+        gPad->Update();
     }
     cChipModes->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cChipModes->GetName()));
     cChipModes->SaveAs(Form("%s/plots/%s.pdf", fSimFolder.c_str(), cChipModes->GetName()));
     cChipModes->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cChipModes->GetName()));
     cChipModes->SaveAs(Form("%s/plots/%s.root", fSimFolder.c_str(), cChipModes->GetName()));
 
-*/
+}
+
+if(draw_HITS){
     cHits = new TCanvas("cHits", "Chip Hits Pixel Planes", CANVAS_WIDTH*1.25, CANVAS_HEIGHT);
     gStyle->SetPalette(kLake);
     cHits->Divide(2,1);
@@ -699,7 +869,9 @@ void FOCALDetectorAnalysis::Draw(){
         gPad->SetRightMargin(0.2);
         fFOCALPlane_Hits.at(l)->Draw("COLZ L");
     }
-    
+}
+
+if(draw_OCCUPANCY){
 
     cOcc = new TCanvas("cOcc", "Chip Ocupancy Pixel Planes", CANVAS_WIDTH*1.25, CANVAS_HEIGHT);
     gStyle->SetPalette(kLake);
@@ -708,6 +880,10 @@ void FOCALDetectorAnalysis::Draw(){
         cOcc->cd(l+1);
         gPad->SetRightMargin(0.2);
         fFOCALPlane_Occupancy.at(l)->Draw("COLZ L");
+        fFOCALPlane_Occupancy.at(l)->GetXaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+        fFOCALPlane_Occupancy.at(l)->GetYaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+        gPad->Modified();
+        gPad->Update();
     }
 
     cOcc->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cOcc->GetName()));
@@ -715,14 +891,119 @@ void FOCALDetectorAnalysis::Draw(){
     cOcc->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cOcc->GetName()));
     cOcc->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cOcc->GetName()));
 
+
+    gStyle->SetPalette(kBird);
+
+    cHits = new TCanvas("cHits", "Hit rate", CANVAS_WIDTH*1.25, CANVAS_HEIGHT);
+    cHits->Divide(2,1);
+    TFile *fHitRate = new TFile("hitmap.root", "READ");
+    TH2D *_hhits5 = (TH2D*) fHitRate->Get("hHitmaps_Layer5_0");
+    TH2D *_hhits10 = (TH2D*) fHitRate->Get("hHitmaps_Layer10_0");
+    _hhits5->Scale(1e3/fEventRate*100);
+    _hhits10->Scale(1e3/fEventRate*100);
+
+    _hhits10->SetMaximum(5);
+    _hhits5->SetMaximum(5);
+
+    _hhits10->GetZaxis()->SetTitle("Particle rate (MHz/cm^{2})");
+    _hhits5->GetZaxis()->SetTitle("Particle rate (MHz/cm^{2})");
+
+    _hhits5->SetTitle(Form("Layer 5: Particle rate %.1f MHz pp interaction rate", 1000./fEventRate));
+    _hhits10->SetTitle(Form("Layer 10: Particle rate %.1f MHz pp interaction rate", 1000./fEventRate));
+
+    for(unsigned int l=0;l<=1;l++){
+        cHits->cd(l+1);
+        gPad->SetRightMargin(0.2);
+
+        if(!l) _hhits5->Draw("COLZ");
+        if(l)  _hhits10->Draw("COLZ");
+        fFOCALPlane_Bare.at(l)->Draw("L sames");
+        //fFOCALPlane_Occupancy.at(l)->GetXaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+        //fFOCALPlane_Occupancy.at(l)->GetYaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+
+        gPad->Modified();
+        gPad->Update();
+
+        gPad->Update();
+        TPaletteAxis *palette;
+        if(!l) palette = (TPaletteAxis*)_hhits5->GetListOfFunctions()->FindObject("palette");
+        if(l) palette = (TPaletteAxis*)_hhits10->GetListOfFunctions()->FindObject("palette");
+
+
+
+        // the following lines move the palette. Choose the values you need for the position.
+        palette->SetX1NDC(0.81);
+        palette->SetX2NDC(0.86);
+        palette->SetY1NDC(0.1);
+        palette->SetY2NDC(0.9);
+        gPad->Modified();
+        gPad->Update();
+
+        gPad->SetLogz();
+    }
+
+    cHits->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cHits->GetName()));
+    cHits->SaveAs(Form("%s/plots/%s.pdf", fSimFolder.c_str(), cHits->GetName()));
+    cHits->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cHits->GetName()));
+    cHits->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cHits->GetName()));
+
+}
+
+if(draw_DATARATE){
+
+    gStyle->SetPalette(kBird);
+    cDataRateLinks = new TCanvas("cDataRate_Links", "Data Rate vs. Link ID", 1000*1.1, 1000);
+    cDataRateLinks->Divide(1,2);
+    for(unsigned int l=0;l<=1;l++){
+        cDataRateLinks->cd(l+1);
+        gPad->SetRightMargin(0.025);
+        fFOCAL_DatarateLinks.at(l)->SetStats(0);
+        fFOCAL_DatarateLinks.at(l)->Draw("COL");
+        gPad->SetGridy();
+        gPad->SetLogz();
+    }
+
+    cDataRateSum = new TCanvas("cDataRateSum", "Data rate sum of all links", 1200*1.1, 600);
+    cDataRateSum->Divide(2,1);
+    for(unsigned int l=0;l<=1;l++){
+        cDataRateSum->cd(l+1);
+        fFOCAL_DatarateSum.at(l)->SetLineColor(uibColorIndex(1));
+        fFOCAL_DatarateSum.at(l)->SetMarkerColor(uibColorIndex(1));
+        fFOCAL_DatarateSum.at(l)->SetMarkerStyle(kFullTriangleUp);
+        fFOCAL_DatarateSum.at(l)->Draw("hist LEP");
+        gPad->SetGridy();
+        gPad->SetGridx();
+    }
+
+    /*
+    cDataRateLinksTime = new TCanvas("cDataRate_LinksTime", "Data Rate vs. Time", 1200*1.1, 800);
+    cDataRateLinksTime->Divide(1,2);
+    for(unsigned int l=0;l<=1;l++){
+        cDataRateLinksTime->cd(l+1);
+        fFOCAL_DatarateLinksTime.at(l)->Draw("COLZ");
+        gPad->SetGridx();
+    }
+    */
+
     cDataRate = new TCanvas("cDataRate", "Chip Data Rate Pixel Planes", CANVAS_WIDTH*1.25, CANVAS_HEIGHT);
-    gStyle->SetPalette(kLake);
+    gStyle->SetPalette(kBird);
     cDataRate->Divide(2,1);
     for(unsigned int l=0;l<=1;l++){
         cDataRate->cd(l+1);
         gPad->SetRightMargin(0.2);
         fFOCALPlane_Datarate.at(l)->Draw("COLZ L");
+        fFOCALPlane_Datarate.at(l)->GetXaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+        fFOCALPlane_Datarate.at(l)->GetYaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+        gPad->Modified();
+        gPad->Update();
     }
+
+
+
+    cDataRateSum->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cDataRateSum->GetName()));
+    cDataRateSum->SaveAs(Form("%s/plots/%s.pdf", fSimFolder.c_str(), cDataRateSum->GetName()));
+    cDataRateSum->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cDataRateSum->GetName()));
+    cDataRateSum->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cDataRateSum->GetName()));
 
 
     cDataRate->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cDataRate->GetName()));
@@ -730,78 +1011,10 @@ void FOCALDetectorAnalysis::Draw(){
     cDataRate->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cDataRate->GetName()));
     cDataRate->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cDataRate->GetName()));
 
-    cBusyV = new TCanvas("cBusyV", "Chip Busy Violations Pixel Planes", CANVAS_WIDTH*1.25, CANVAS_HEIGHT);
-    gStyle->SetPalette(kLake);
-    cBusyV->Divide(2,1);
-    for(unsigned int l=0;l<=1;l++){
-        cBusyV->cd(l+1);
-        gPad->SetRightMargin(0.2);
-        fFOCALPlane_BusyV.at(l)->Draw("COLZ L");
-        //gPad->SetLogz();
-
-    }
-
-    cBusyV->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cBusyV->GetName()));
-    cBusyV->SaveAs(Form("%s/plots/%s.pdf", fSimFolder.c_str(), cBusyV->GetName()));
-    cBusyV->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cBusyV->GetName()));
-    cBusyV->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cBusyV->GetName()));
-
-
-    cBusy = new TCanvas("cBusy", "Chip Busy Flags Pixel Planes", CANVAS_WIDTH*1.25, CANVAS_HEIGHT);
-    gStyle->SetPalette(kLake);
-    cBusy->Divide(2,1);
-    for(unsigned int l=0;l<=1;l++){
-        cBusy->cd(l+1);
-        gPad->SetRightMargin(0.2);
-        fFOCALPlane_Busy.at(l)->Draw("COLZ L");
-        //gPad->SetLogz();
-
-    }
-
-    cBusy->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cBusy->GetName()));
-    cBusy->SaveAs(Form("%s/plots/%s.pdf", fSimFolder.c_str(), cBusy->GetName()));
-    cBusy->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cBusy->GetName()));
-    cBusy->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cBusy->GetName()));
-
-    cFrameEff = new TCanvas("cFrame", "Chip Frame Efficiency Pixel Planes", CANVAS_WIDTH*1.25, CANVAS_HEIGHT);
-    gStyle->SetPalette(kLake);
-    cFrameEff->Divide(2,1);
-    for(unsigned int l=0;l<=1;l++){
-        cFrameEff->cd(l+1);
-        gPad->SetRightMargin(0.2);
-        fFOCALPlane_FrameEfficiency.at(l)->Draw("COLZ L");
-
-    }
-
-    cFrameEff->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cFrameEff->GetName()));
-    cFrameEff->SaveAs(Form("%s/plots/%s.pdf", fSimFolder.c_str(), cFrameEff->GetName()));
-    cFrameEff->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cFrameEff->GetName()));
-    cFrameEff->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cFrameEff->GetName()));
-
-    cFrameEff_geom = new TCanvas("cFrame_geom", "Chip Frame Efficiency vs. ETA/Radius", CANVAS_WIDTH*1.25, 2*CANVAS_HEIGHT);
-    cFrameEff_geom->Divide(2,2);
-
-    for(unsigned int l=0;l<=1;l++){
-        cFrameEff_geom->cd(l+1);
-        fFOCALFrameEfficiency_vs_Radius.at(l)->Draw("COLZ");
-        fGFOCALFrameEfficiency_vs_Radius.at(l)->Draw("*L sames");
-
-        gPad->SetGridy();gPad->SetGridx();
-        cFrameEff_geom->cd(l+1+2);
-        fFOCALFrameEfficiency_vs_Eta.at(l)->Draw("COLZ");
-        fGFOCALFrameEfficiency_vs_Eta.at(l)->Draw("*L sames");
-
-        //fFOCALFrameEfficiency_vs_Eta.at(l)->GetYaxis()->SetLimits(0,1);
-        gPad->Modified();
-        gPad->Update();
-
-        gPad->SetGridy();gPad->SetGridx();
-
-    }
-    cFrameEff_geom->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cFrameEff_geom->GetName()));
-    cFrameEff_geom->SaveAs(Form("%s/plots/%s.pdf", fSimFolder.c_str(), cFrameEff_geom->GetName()));
-    cFrameEff_geom->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cFrameEff_geom->GetName()));
-    cFrameEff_geom->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cFrameEff_geom->GetName()));
+    cDataRateLinks->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cDataRateLinks->GetName()));
+    cDataRateLinks->SaveAs(Form("%s/plots/%s.pdf", fSimFolder.c_str(), cDataRateLinks->GetName()));
+    cDataRateLinks->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cDataRateLinks->GetName()));
+    cDataRateLinks->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cDataRateLinks->GetName()));
 
     cDataRate_geom = new TCanvas("cDataRate_geom", "Data rate vs. ETA/Radius", CANVAS_WIDTH*1.25, 2*CANVAS_HEIGHT);
     cDataRate_geom->Divide(2,2);
@@ -830,14 +1043,161 @@ void FOCALDetectorAnalysis::Draw(){
     cDataRate_geom->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cDataRate_geom->GetName()));
 
 
-    cValidHits = new TCanvas("cValidHits", "Valid/Invalid Hits in FOCAL-Simu -> SystemC", CANVAS_WIDTH*1.25, CANVAS_HEIGHT);
-    cValidHits->Divide(2,1);
+}
+
+if(draw_BUSYV){
+
+    cBusyV = new TCanvas("cBusyV", "Chip Busy Violations Pixel Planes", CANVAS_WIDTH*1.25, CANVAS_HEIGHT);
+    gStyle->SetPalette(kRainBow);
+    //TColor::InvertPalette();
+    cBusyV->Divide(2,1);
+    for(unsigned int l=0;l<=1;l++){
+        cBusyV->cd(l+1);
+        gPad->SetRightMargin(0.2);
+        fFOCALPlane_BusyV.at(l)->Draw("COLZ L");
+        gPad->SetLogz();
+        //gPad->SetLogz();
+        fFOCALPlane_BusyV.at(l)->GetXaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+        fFOCALPlane_BusyV.at(l)->GetYaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+        gPad->Modified();
+        gPad->Update();
+
+    }
+
+    cBusyV->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cBusyV->GetName()));
+    cBusyV->SaveAs(Form("%s/plots/%s.pdf", fSimFolder.c_str(), cBusyV->GetName()));
+    cBusyV->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cBusyV->GetName()));
+    cBusyV->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cBusyV->GetName()));
+
+    TCanvas *cBusyVLinks = new TCanvas("cBusyVLinks", "cBusyVLinks",CANVAS_WIDTH*1.25, CANVAS_HEIGHT);
+    cBusyVLinks->Divide(2,1);
+    cBusyVLinks->cd(1);
+    fFramesWithBusyV->SetLineWidth(2);
+    fFramesWithBusyV->SetLineColor(uibColorIndex(1));
+    fFramesWithBusyV->Draw("");
+    gPad->SetGrid();
+    gPad->Modified();gPad->Update();
+
+    cBusyVLinks->cd(2);
+    fFramesWithBusyV_cumulative->Draw("PC hist sames");
+    fFramesWithBusyV_cumulative->Draw("EX0 sames");
+    fFramesWithBusyV_cumulative->SetMinimum(0);
+    fFramesWithBusyV_cumulative->SetLineColor(uibColorIndex(1));
+    fFramesWithBusyV_cumulative->SetMarkerColor(uibColorIndex(1));
+
+    fFramesWithBusyV_cumulative->SetMaximum(1.1);
+    gPad->SetGrid();
+    gPad->Modified();gPad->Update();
+    std::cout << fFramesWithBusyV->GetBinContent(1) << "\t" << fFramesWithBusyV->GetEntries() << std::endl;
+    std::cout << fFramesWithBusyV->GetBinContent(1) / fFramesWithBusyV->GetEntries() << std::endl;
+
+
+    cBusyVLinks->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cBusyVLinks->GetName()));
+    cBusyVLinks->SaveAs(Form("%s/plots/%s.pdf", fSimFolder.c_str(), cBusyVLinks->GetName()));
+    cBusyVLinks->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cBusyVLinks->GetName()));
+    cBusyVLinks->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cBusyVLinks->GetName()));
+
+}
+
+if(draw_BUSY){
+    cBusy = new TCanvas("cBusy", "Chip Busy Flags Pixel Planes", CANVAS_WIDTH*1.25, CANVAS_HEIGHT);
+    gStyle->SetPalette(kLake);
+    cBusy->Divide(2,1);
+    for(unsigned int l=0;l<=1;l++){
+        cBusy->cd(l+1);
+        gPad->SetRightMargin(0.2);
+        fFOCALPlane_Busy.at(l)->Draw("COLZ L");
+        //gPad->SetLogz();
+
+    }
+
+    cBusy->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cBusy->GetName()));
+    cBusy->SaveAs(Form("%s/plots/%s.pdf", fSimFolder.c_str(), cBusy->GetName()));
+    cBusy->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cBusy->GetName()));
+    cBusy->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cBusy->GetName()));
+
+}
+
+if(draw_FRAME_EFFICIENCY){
+
+    cFrameEff = new TCanvas("cFrame", "Chip Frame Efficiency Pixel Planes", CANVAS_WIDTH*1.25, CANVAS_HEIGHT);
+    gStyle->SetPalette(kRainBow);
+    TColor::InvertPalette();
+    cFrameEff->Divide(2,1);
+    for(unsigned int l=0;l<=1;l++){
+        cFrameEff->cd(l+1);
+        gPad->SetRightMargin(0.2);
+        fFOCALPlane_FrameEfficiency.at(l)->Draw("COLZ L");
+
+        fFOCALPlane_FrameEfficiency.at(l)->GetXaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+        fFOCALPlane_FrameEfficiency.at(l)->GetYaxis()->SetRangeUser(-PIXEL_PLANE_MAX,PIXEL_PLANE_MAX);
+
+        fFOCALPlane_FrameEfficiency.at(l)->SetMinimum(MIN_EFFI);
+        fFOCALPlane_FrameEfficiency.at(l)->SetMaximum(MAX_EFFI);
+
+
+        gPad->SetLogz();
+
+        gPad->Modified();
+        gPad->Update();
+
+    }
+
+    cFrameEff->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cFrameEff->GetName()));
+    cFrameEff->SaveAs(Form("%s/plots/%s.pdf", fSimFolder.c_str(), cFrameEff->GetName()));
+    cFrameEff->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cFrameEff->GetName()));
+    cFrameEff->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cFrameEff->GetName()));
+
+    cFrameEff_geom = new TCanvas("cFrame_geom", "Chip Frame Efficiency vs. ETA/Radius", CANVAS_WIDTH*1.25, 2*CANVAS_HEIGHT);
+    cFrameEff_geom->Divide(2,2);
+
+    for(unsigned int l=0;l<=1;l++){
+        cFrameEff_geom->cd(l+1);
+        fFOCALFrameEfficiency_vs_Radius.at(l)->Draw("COLZ");
+        fGFOCALFrameEfficiency_vs_Radius.at(l)->SetMarkerColor(kAlpine);
+        fGFOCALFrameEfficiency_vs_Radius.at(l)->SetLineColor(kAlpine);
+        fGFOCALFrameEfficiency_vs_Radius.at(l)->SetMarkerColor(kAlpine);
+        fGFOCALFrameEfficiency_vs_Radius.at(l)->SetMarkerStyle(kFullTriangleUp);
+        fGFOCALFrameEfficiency_vs_Radius.at(l)->Draw("PL sames");
+        fGFOCALFrameEfficiency_vs_Radius.at(l)->Draw("PL sames");
+
+        gPad->SetGridy();gPad->SetGridx();
+        cFrameEff_geom->cd(l+1+2);
+        fFOCALFrameEfficiency_vs_Eta.at(l)->Draw("COLZ");
+        fGFOCALFrameEfficiency_vs_Eta.at(l)->SetMarkerColor(kAlpine);
+        fGFOCALFrameEfficiency_vs_Eta.at(l)->SetLineColor(kAlpine);
+        fGFOCALFrameEfficiency_vs_Eta.at(l)->SetMarkerColor(kAlpine);
+        fGFOCALFrameEfficiency_vs_Eta.at(l)->SetMarkerStyle(kFullTriangleUp);
+        fGFOCALFrameEfficiency_vs_Eta.at(l)->Draw("PL sames");
+
+        //fFOCALFrameEfficiency_vs_Eta.at(l)->GetYaxis()->SetLimits(0,1);
+        gPad->Modified();
+        gPad->Update();
+
+
+        gPad->SetGridy();gPad->SetGridx();
+
+    }
+    cFrameEff_geom->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cFrameEff_geom->GetName()));
+    cFrameEff_geom->SaveAs(Form("%s/plots/%s.pdf", fSimFolder.c_str(), cFrameEff_geom->GetName()));
+    cFrameEff_geom->SaveAs(Form("%s/plots/%s.eps", fSimFolder.c_str(), cFrameEff_geom->GetName()));
+    cFrameEff_geom->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cFrameEff_geom->GetName()));
+
+}
+
+if(draw_VALIDHITS){
+    cValidHits = new TCanvas("cValidHits", "Valid/Invalid Hits in FOCAL-Simu -> SystemC", CANVAS_WIDTH*1.25, 2*CANVAS_HEIGHT);
+    cValidHits->Divide(2,2);
 
     for(unsigned int l=0;l<=1;l++){
         cValidHits->cd(l+1);
-        fFOCALValidHits.at(l)->Draw("");
-        fFOCALInvalidHits.at(l)->Draw("sames");
+        fFOCALValidHits.at(l)->Draw("COL");
         gPad->SetGridy();gPad->SetGridx();
+        fFOCALPlane_Bare.at(l)->Draw("L sames");
+        cValidHits->cd(l+1+2);
+        fFOCALInvalidHits.at(l)->Draw("COL");
+        gPad->SetGridy();gPad->SetGridx();
+        fFOCALPlane_Bare.at(l)->Draw("L sames");
     }
 
     cValidHits->SaveAs(Form("%s/plots/%s.png", fSimFolder.c_str(), cValidHits->GetName()));
@@ -846,7 +1206,11 @@ void FOCALDetectorAnalysis::Draw(){
     cValidHits->SaveAs(Form("%s/plots/%s.root",fSimFolder.c_str(), cValidHits->GetName()));
     
 }
+    gStyle->SetPalette(kBird);
 
+
+
+}
 void FOCALDetectorAnalysis::FillChipIDs(){
     for(unsigned int i=0;i<Focal::CHIPS;i++){
         const int l = i/Focal::CHIPS_PER_LAYER;
@@ -889,7 +1253,7 @@ void FOCALDetectorAnalysis::init(){
         hpoly = new TH2Poly();
         hpoly->SetStats(0);
         hpoly->SetName(Form("focalplane_occupancy_%d_%s", l, fSimFolder.substr(fSimFolder.size() - 5).c_str()));
-        hpoly->SetTitle(Form("FoCal Pixel Occupancy Plane %d;x (mm);y (mm);Average occupancy / chip / frame", l));
+        hpoly->SetTitle(Form("FoCal Pixel Occupancy Plane %d;x (mm);y (mm);Average occupancy / chip / frame (%%)", l));
         CreateFOCALChipBins(hpoly);
         fFOCALPlane_Occupancy.push_back(hpoly);
 
@@ -933,12 +1297,12 @@ void FOCALDetectorAnalysis::init(){
         _hfer->SetStats(0);
         fFOCALFrameEfficiency_vs_Radius.push_back(_hfer);
  
-        TH2D *_hfeeta = new TH2D(Form("hFrameEfficiency_vs_Eta_Layer%d_%s", l, fSimFolder.substr(fSimFolder.size() - 5).c_str()), Form("Frame Efficiency vs. #eta Layer %d;#eta;Efficiency;Entries", l), NETA_BINS, MIN_ETA, MAX_ETA,NEFFI_BINS, MIN_EFFI, MAX_EFFI) ;
+        TH2D *_hfeeta = new TH2D(Form("hFrameEfficiency_vs_Eta_Layer%d_%s", l, fSimFolder.substr(fSimFolder.size() - 5).c_str()), Form("Frame Efficiency vs. #eta Layer %d;Pseudo-rapidity #eta;Efficiency;Entries", l), NETA_BINS, MIN_ETA, MAX_ETA,NEFFI_BINS, MIN_EFFI, MAX_EFFI) ;
         _hfeeta->SetStats(0);
         fFOCALFrameEfficiency_vs_Eta.push_back(_hfeeta);
 
 
-        TH2D *_hdreta = new TH2D(Form("hDataRate_vs_Eta_Layer%d_%s", l, fSimFolder.substr(fSimFolder.size() - 5).c_str()), Form("Data Rate vs. #eta Layer %d;#eta;Data rate (Mbit/s);Entries", l), NETA_BINS, MIN_ETA, MAX_ETA, NDATARATE_BINS, MIN_DATARATE, MAX_DATARATE) ;
+        TH2D *_hdreta = new TH2D(Form("hDataRate_vs_Eta_Layer%d_%s", l, fSimFolder.substr(fSimFolder.size() - 5).c_str()), Form("Data Rate vs. #eta Layer %d;Pseudo-rapidity #eta;Data rate (Mbit/s);Entries", l), NETA_BINS, MIN_ETA, MAX_ETA, NDATARATE_BINS, MIN_DATARATE, MAX_DATARATE) ;
         _hdreta->SetStats(0);
         fFOCALDataRate_vs_Eta.push_back(_hdreta);
 
@@ -948,8 +1312,8 @@ void FOCALDetectorAnalysis::init(){
         fFOCALDataRate_vs_Radius.push_back(_hdrradius);
 
 
-        TH2D *valid = new TH2D(Form("validhits_layer%d_%s", l, fSimFolder.substr(fSimFolder.size() - 5).c_str()), Form("Valid Hits Layer %d;X (mm);Y (mm)", l), FOCAL_N_BINS, -FOCAL_X_MAX_CM, FOCAL_X_MAX_CM, FOCAL_N_BINS, -FOCAL_Y_MAX_CM, FOCAL_Y_MAX_CM);
-        TH2D *invalid = new TH2D(Form("invalidhits_layer%d_%s", l, fSimFolder.substr(fSimFolder.size() - 5).c_str()), Form("Inalid Hits Layer %d;X (mm);Y (mm)", l), FOCAL_N_BINS, -FOCAL_X_MAX_CM, FOCAL_X_MAX_CM, FOCAL_N_BINS, -FOCAL_Y_MAX_CM, FOCAL_Y_MAX_CM);
+        TH2D *valid = new TH2D(Form("validhits_layer%d_%s", l, fSimFolder.substr(fSimFolder.size() - 5).c_str()), Form("Valid Hits Layer %d;X (mm);Y (mm)", l), FOCAL_N_BINS, -FOCAL_X_MAX_MM, FOCAL_X_MAX_MM, FOCAL_N_BINS, -FOCAL_Y_MAX_MM, FOCAL_Y_MAX_MM);
+        TH2D *invalid = new TH2D(Form("invalidhits_layer%d_%s", l, fSimFolder.substr(fSimFolder.size() - 5).c_str()), Form("Inalid Hits Layer %d;X (mm);Y (mm)", l), FOCAL_N_BINS, -FOCAL_X_MAX_MM, FOCAL_X_MAX_MM, FOCAL_N_BINS, -FOCAL_Y_MAX_MM, FOCAL_Y_MAX_MM);
         valid->SetStats(0);
         invalid->SetStats(0);
         valid->SetMarkerColor(kGreen+1);
@@ -957,6 +1321,15 @@ void FOCALDetectorAnalysis::init(){
 
         fFOCALInvalidHits.push_back(invalid);
         fFOCALValidHits.push_back(valid);
+
+        fFramesWithBusyV = new TH1D(Form("fFramesWithBusyV",l), ";Number of BUSYV links;Count;", 21, -0.5, 20.5);
+        fFramesWithBusyV_cumulative = new TH1D(Form("fFramesWithBusyV_cumulative", l), ";Maximum bumber of BUSYV links;Global frame efficiency", 21, -0.5, 20.5);
+        fFramesWithBusyV_cumulative->SetMarkerColor(kBlack);
+        fFramesWithBusyV_cumulative->SetMarkerStyle(kFullCircle);
+        fFramesWithBusyV_cumulative->SetStats(0);
+
+        fFOCAL_DatarateSum.at(l) = new TH1D(Form("fFOCAL_DatarateSum_Layer%d", l), Form("Data rate - Sum of all links layer %d;Full data rate Pixel Layer %d (Mb/s);Entries", l,l), N_DATARATE_SUM_BINS, 0, MAX_DATARATE_SUM);
+
 
     }
 
@@ -981,14 +1354,27 @@ void FOCALDetectorAnalysis::CreateFOCALChipBins(TH2Poly* th2)
         
         unsigned int stave_num = half_patch_num*Focal::STAVES_PER_HALF_PATCH+stave_num_in_half_patch;
 
-        double y_low = stave_num*ALPIDE::CHIPSIZE_Y_MM;
-        double y_high = y_low+ALPIDE::CHIPSIZE_Y_MM;
+
         double x_start = 0;
 
+
+        int nCoolingGaps = 0;
+        if(stave_num>=3) nCoolingGaps++;
+        if(stave_num>=9) nCoolingGaps++;
+        if(stave_num>=15) nCoolingGaps++;
+        if(stave_num>=21) nCoolingGaps++;
+        if(stave_num>=27) nCoolingGaps++;
+
+
+        double y_low = stave_num*ALPIDE::CHIPSIZE_Y_MM + nCoolingGaps*Focal::SHIFT_Y_MM;
+        double y_high = y_low+ALPIDE::CHIPSIZE_Y_MM;
         if(y_low < Focal::HALF_PATCH_SIZE_Y_MM){
 	        //std::cout << quadrant << ", "<< half_patch_num<<", "<<stave_num_in_half_patch<<": "<< y_low << "\t" << Focal::HALF_PATCH_SIZE_Y_MM << std::endl;
             x_start = Focal::GAP_SIZE_X_MM/2;
+            //x_start = Focal::SHIFT_X_MM;
 	    }
+
+
 
         for(unsigned int chip_num = 0; chip_num < Focal::CHIPS_PER_STRING; chip_num++) {
           double x_low = x_start + chip_num*ALPIDE::CHIPSIZE_X_MM;

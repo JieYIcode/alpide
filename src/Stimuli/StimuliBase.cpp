@@ -68,6 +68,7 @@ StimuliBase::StimuliBase(sc_core::sc_module_name name,
   std::cout << "Data rate interval (ns): " << mDataRateIntervalNs << std::endl;
 // not needed for stimuli, but still outbut here for user info
   std::cout << "Average event rate (ns): " << settings->value("event/average_event_rate_ns").toInt()  <<std::endl;
+  std::cout << "Random cluster size mean: " << settings->value("event/random_cluster_size_mean").toString().toStdString()  <<std::endl;
 
   if(mDataRateIntervalNs == 0) {
     std::string error_msg = "Data rate interval can not be zero.";

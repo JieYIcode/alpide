@@ -10,6 +10,7 @@
 
 #include <TFile.h>
 #include <TTree.h>
+#include <TChain.h>
 #include <TClonesArray.h>
 #include <QString>
 #include <memory>
@@ -59,7 +60,7 @@ private:
   Detector::t_position_to_global_chip_id_func mPositionToGlobalChipIdFunc;
 
   TFile* mRootFile;
-  TTree* mEventTree;
+  TChain* mEventTree;
   TClonesArray *mTCA;
 
   TFile* mHitsFile;

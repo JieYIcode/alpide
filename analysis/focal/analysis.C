@@ -4,34 +4,43 @@
 #include "TGraphAsymmErrors.h"
 #include "TLegend.h"
 
+#include "RUNSettings.h"
 
 FOCALDetectorAnalysis *fda;
 
 double SystemRate(int run){
     if(run==0) return 10000;
-    if(run==1) return 5000;
-    if(run==2) return 2500;
-    if(run==3) return 20000;
-    if(run==4) return 50000;
+    if(run==1 || run==15) return 5000;
+    if(run==2 || run==14) return 2500;
+    if(run==3 || run==16) return 20000;
+    if(run==4 || run==17) return 50000;
     return 10000;
 }
 
 double ClusterSize(int run){
-    if(run==5) return 6;
-    if(run==6) return 8;
-    if(run==7) return 3;
-    if(run==8) return 2;
+    if(run==5 || run==13) return 6;
+    if(run==6 || run==12) return 8;
+    if(run==7 || run==10) return 3;
+    if(run==8 || run==9) return 2;
     return 4;
 }
 
-void singleAnalysis(){
+void singleAnalysis(int _run){
 
-        int run = 0;
-        fda = new FOCALDetectorAnalysis(Form("/alf/data/focal/alpide_systemc/sim_output/run_%d", run), 25000);
-        fda->SetSystemRate(SystemRate(run));
-        fda->SetEventRate(1000);
+      //gStyle->SetCanvasPreferGL(false);
+
+        //std::string base_dir = "masks_20230426";
+        std::string base_dir = "pPb_20230427";
+
+        int run = _run;
+        RUNSettings thisrun = runsettings[base_dir].at(run);
+        Double_t system_rate = thisrun.system_rate;
+        Double_t event_rate = thisrun.event_rate;
+        Int_t n_events = thisrun.n_events;
+        fda = new FOCALDetectorAnalysis(Form("/alf/data/focal/alpide_systemc/sim_output/%s//run_%d", base_dir.c_str(), run), n_events, system_rate, event_rate);
+        //fda->SetRates(system_rate,event_rate);
         fda->FillHitmap();
-        fda->FillValidHits();
+        //fda->FillValidHits();
         fda->AnalyseRULinks();
         fda->Draw();
 }
@@ -263,7 +272,8 @@ void fullAnalysis(){
         //analysis->Draw();
 }
 
-void analysis(){
-    //singleAnalysis();
-    fullAnalysis();
+void analysis(int run){
+    
+    singleAnalysis(run);
+    //fullAnalysis();
 }

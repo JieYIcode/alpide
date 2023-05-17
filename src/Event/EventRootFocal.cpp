@@ -15,6 +15,8 @@
 #include "EventRootFocal.hpp"
 
 #include <TFile.h>
+#include <TChain.h>
+#include <TSystem.h>
 
 using boost::random::uniform_int_distribution;
 using boost::random::uniform_real_distribution;
@@ -76,6 +78,7 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
   mRandHitMacroCellX = new uniform_real_distribution<double>(0, Focal::MACRO_CELL_SIZE_X_MM);
   mRandHitMacroCellY = new uniform_real_distribution<double>(0, Focal::MACRO_CELL_SIZE_Y_MM);
 
+#ifdef WRITE_VALID_HITS
   mHitsFile = new TFile(Form("%s/Hits.root", mOutputPath.c_str()), "RECREATE");
   mHitsFile->cd();
   mHitsTree = new TTree("treeHits", "treeHits");
@@ -85,16 +88,29 @@ EventRootFocal::EventRootFocal(Detector::DetectorConfigBase config,
   mHitsTree->Branch("chipId", &mChipId);
   mHitsTree->Branch("layer", &mLayer);
   mHitsTree->Branch("valid", &mHitValid);
+#endif
 
-  mRootFile = new TFile();
-  mRootFile = TFile::Open(event_filename.toStdString().c_str(), "READ");
+  //mRootFile = new TFile();
+  //mRootFile = TFile::Open(event_filename.toStdString().c_str(), "READ");
 
-  if(!mRootFile->IsOpen()){
-    std::cerr << "Could not open "<<event_filename.toStdString().c_str()<<". Exit."<<std::endl;
-    exit(-1);
-  }
+  //if(!mRootFile->IsOpen()){
+  //if(!mRootFile->IsOpen()){
+  //  std::cerr << "Could not open "<<event_filename.toStdString().c_str()<<". Exit."<<std::endl;
+  //  exit(-1);
+  //}
 
-  mEventTree = (TTree *)mRootFile->Get("hitsTree");
+  mEventTree = new TChain("hitsTree");
+	for(unsigned int i=1;i<=50;i++){
+		
+		std::string hitfilename = Form("%s/%03d/HitsTree.root", event_filename.toStdString().c_str(), i);
+		if(!gSystem->AccessPathName(Form("%s",hitfilename.c_str()))){
+			mEventTree->Add(Form("%s", hitfilename.c_str()));
+		} else {
+			std::cout <<"File not found: "<< hitfilename <<std::endl;;
+		}
+	}
+
+  //mEventTree = (TTree *)mRootFile->Get("hitsTree");
   mEventTree->SetBranchStatus("*", 0);
   mEventTree->SetBranchStatus("x", 1);
   mEventTree->SetBranchStatus("y", 1);
@@ -158,7 +174,7 @@ EventRootFocal::~EventRootFocal()
 
   std::cout << "EventRootFocal destructor called... ";
 
-
+#ifdef WRITE_VALID_HITS
   if(mHitsFile->IsOpen()){
     mHitsFile->cd();
     mHitsTree->Write();
@@ -167,6 +183,7 @@ EventRootFocal::~EventRootFocal()
     mHitsFile->Close();
     delete mHitsFile;
   }
+#endif
 
   std::cout << "...\tdeleted HITS outut root file" << std::endl;
 
@@ -188,12 +205,13 @@ EventRootFocal::~EventRootFocal()
   delete mBranchColS3;
   delete mBranchAmpS3;
   */
-  // delete mEventTree;
-  if (mRootFile->IsOpen())
-  {
-    mRootFile->Close();
-    delete mRootFile;
-  }
+  delete mEventTree;
+  
+  //if (mRootFile->IsOpen())
+  //{
+  //  mRootFile->Close();
+  //  delete mRootFile;
+  //}
 
   //if(mEventDigits!=nullptr) delete mEventDigits;
   //delete mRootFile;
@@ -218,7 +236,7 @@ void EventRootFocal::createHitsFromAliFOCALCellCM(double global_cm_x, double glo
   bool hit_valid = global_cm_coords_to_chip_coords(global_cm_x, global_cm_y, layer,
                                                    mStavesPerQuadrant, global_chip_id,
                                                    chip_x_mm, chip_y_mm);
-
+  //std::cout<<hit_valid<<"\t"<<global_cm_x<<"\t"<<global_cm_y<<"\t"<<global_chip_id<<"\t"<<chip_x_mm<<"\t"<<chip_y_mm<<std::endl;
   if (hit_valid)
   {
     // Create specified number of random hits within macro cell
@@ -256,7 +274,9 @@ void EventRootFocal::createHitsFromAliFOCALCellCM(double global_cm_x, double glo
       mChipId = global_chip_id;
       mLayer = layer;
       mHitValid = true;
+#ifdef WRITE_VALID_HITS
       mHitsTree->Fill();
+#endif
     }
   }
   else
@@ -267,7 +287,9 @@ void EventRootFocal::createHitsFromAliFOCALCellCM(double global_cm_x, double glo
     mChipId = global_chip_id;
     mLayer = layer;
     mHitValid = false;
+#ifdef WRITE_VALID_HITS
     mHitsTree->Fill();
+#endif
   }
 }
 
@@ -426,15 +448,16 @@ EventDigits *EventRootFocal::getNextROOTEvent(void)
   //if(mEntryCounter>=mNumEvents){
 //return mEventDigits;
 //  }
-
+  mNumEvents = _iEvent;
   std::cout << "Getting next event "<< mEventCounter <<" / " << mNumEvents <<std::endl; ;
-  while(mEventCounter==_iEvent){
+  while( (((int) mEventCounter)%1000)==(_iEvent%1000)){
     if(_segment==1) {
         createHitsFromAliFOCALCellCM(_pixX, _pixY,1, 0, mEventDigits);
     } else if(_segment==3){
         createHitsFromAliFOCALCellCM(_pixX, _pixY,1, 1, mEventDigits);
     }
     mEntryCounter++;
+    if((Long64_t) mEntryCounter>mEventTree->GetEntries()) break;
     mEventTree->GetEntry(mEntryCounter);
   }
   std::cout << "Filled " << mEventDigits->size() << " digits pixel layers for event counter "<< mEventCounter << std::endl;
@@ -679,11 +702,11 @@ bool global_cm_coords_to_chip_coords(const double global_cm_x, const double glob
 
 
   unsigned int n_cooling_gaps_y=0;
-  if(macro_cell_y_mm>4.75) n_cooling_gaps_y++;
-  if(macro_cell_y_mm>13.65) n_cooling_gaps_y++;
-  if(macro_cell_y_mm>22.55) n_cooling_gaps_y++;
-  if(macro_cell_y_mm>31.45) n_cooling_gaps_y++;
-  if(macro_cell_y_mm>40.35) n_cooling_gaps_y++;
+  if(macro_cell_y_mm>3*Focal::STAVE_SIZE_Y_MM) n_cooling_gaps_y++;
+  if(macro_cell_y_mm>9*Focal::STAVE_SIZE_Y_MM + Focal::SHIFT_Y_MM) n_cooling_gaps_y++;
+  if(macro_cell_y_mm>15*Focal::STAVE_SIZE_Y_MM + 2*Focal::SHIFT_Y_MM) n_cooling_gaps_y++;
+  if(macro_cell_y_mm>21*Focal::STAVE_SIZE_Y_MM + 3*Focal::SHIFT_Y_MM) n_cooling_gaps_y++;
+  if(macro_cell_y_mm>27*Focal::STAVE_SIZE_Y_MM + 4*Focal::SHIFT_Y_MM) n_cooling_gaps_y++;
 
   macro_cell_y_mm -= n_cooling_gaps_y*Focal::SHIFT_Y_MM;
 

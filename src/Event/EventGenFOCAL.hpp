@@ -65,6 +65,9 @@ private:
   int mBunchCrossingRate_ns;
   int mAverageEventRate_ns;
 
+  bool mMaskGrid=false;
+  int mMaskGridConstant;
+
   EventBaseDiscrete* mMCPhysicsEvents = nullptr;
   EventBaseDiscrete* mMCQedNoiseEvents = nullptr;
 
@@ -124,6 +127,9 @@ private:
                                    unsigned int &event_pixel_hit_count,
                                    std::map<unsigned int, unsigned int> &chip_hits,
                                    std::map<unsigned int, unsigned int> &layer_hits);
+
+  bool isMasked(Detector::DetectorPosition pos, std::shared_ptr<PixelHit> pixhit);
+  bool gridMasked(std::shared_ptr<PixelHit> pixhit);
 
   uint64_t generateNextPhysicsEvent(void);
   void generateNextQedNoiseEvent(uint64_t event_time_ns);

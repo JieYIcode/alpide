@@ -47,6 +47,9 @@ EventGenFOCAL::EventGenFOCAL(sc_core::sc_module_name name,
   mBunchCrossingRate_ns = settings->value("focal/bunch_crossing_rate_ns").toInt();
   mAverageEventRate_ns = settings->value("event/average_event_rate_ns").toInt();
 
+  mMaskGrid = settings->value("focal/mask_grid").toBool();
+  mMaskGridConstant = settings->value("focal/mask_grid_constant").toInt();
+
   if(mRandomHitGeneration) {
     initRandomHitGen(settings);
   } else {
@@ -381,12 +384,12 @@ void EventGenFOCAL::initPhysicsEventRootFile(const QSettings *settings){
   mPhysicsEventTree = new TTree("mPhysicsEvents", "Physics event tree of AlpideSystemC simulation");
   mPhysicsEventTree->Branch("tDelta", &mPhysicsEventData.tDelta);
   mPhysicsEventTree->Branch("tNow", &mPhysicsEventData.tNow);
-  //mPhysicsEventTree->Branch("globalNHits", &mPhysicsEventData.globalNHits);
-  //mPhysicsEventTree->Branch("globalNLayer0", &mPhysicsEventData.globalNHitsLayer0);
-  //mPhysicsEventTree->Branch("globalNLayer1", &mPhysicsEventData.globalNHitsLayer1);
+  mPhysicsEventTree->Branch("globalNHits", &mPhysicsEventData.globalNHits);
+  mPhysicsEventTree->Branch("globalNLayer0", &mPhysicsEventData.globalNHitsLayer0);
+  mPhysicsEventTree->Branch("globalNLayer1", &mPhysicsEventData.globalNHitsLayer1);
 
-  //mPhysicsEventTree->Branch("layerId", &mPhysicsEventData.layerId);
-  //mPhysicsEventTree->Branch("staveId", &mPhysicsEventData.staveId);
+  mPhysicsEventTree->Branch("layerId", &mPhysicsEventData.layerId);
+  mPhysicsEventTree->Branch("staveId", &mPhysicsEventData.staveId);
   mPhysicsEventTree->Branch("chipId", &mPhysicsEventData.chipId);
   mPhysicsEventTree->Branch("nHits", &mPhysicsEventData.nHits);
 
@@ -405,6 +408,11 @@ void EventGenFOCAL::fillPhysicsEventRootFile(uint64_t t_now, uint64_t t_delta,
   mPhysicsEventData.globalNHitsLayer0 = layer_hits[0];
   mPhysicsEventData.globalNHitsLayer1 = layer_hits[1];
 
+  mPhysicsEventData.layerId.clear();
+  mPhysicsEventData.staveId.clear();
+  mPhysicsEventData.staveChipId.clear();
+  mPhysicsEventData.chipId.clear();
+  mPhysicsEventData.nHits.clear();
   // Write multiplicity for the chips that were included in the simulation
   for(unsigned int layer = 0; layer < Focal::N_LAYERS; layer++) {
     unsigned int chip_id = Focal::CUMULATIVE_CHIP_COUNT_AT_LAYER[layer];
@@ -819,6 +827,41 @@ void EventGenFOCAL::generateRandomEventData(uint64_t event_time_ns,
   } // Detector simulation
 }
 
+bool EventGenFOCAL::gridMasked(std::shared_ptr<PixelHit> pixhit){
+
+  // if the row and the col does lie on a masked col/row return false;
+  if( !(pixhit->getCol()%mMaskGridConstant) || !(pixhit->getRow()%mMaskGridConstant) ) {
+    //std::cout<<"\tMasked chipid"<<pixhit->getChipId()<<"\t("<<pixhit->getCol()<<","<<pixhit->getRow()<<")"<<std::endl;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool EventGenFOCAL::isMasked(Detector::DetectorPosition pos, std::shared_ptr<PixelHit> pixhit){
+
+  // select only the 6 most inner staves
+  if( (pos.stave_id % Focal::STAVES_PER_QUADRANT) < 6){
+    if( (pos.stave_id%Focal::STAVES_PER_QUADRANT) < 3 ){
+      if( (pos.module_id==0) && (pos.module_chip_id==0) ){
+        //std::cout << pos <<"\t" << pixhit->getCol()<<","<<pixhit->getRow()<< std::endl;
+        return gridMasked(pixhit);
+      } else {
+        return false;
+      }
+    } else {
+      if( (pos.module_id==0) && (pos.module_chip_id<=1) ){
+        //std::cout << pos <<"\t" << pixhit->getCol()<<","<<pixhit->getRow()<< std::endl;
+        return gridMasked(pixhit);
+      } else {
+        return false;
+      }
+    }
+  } else {
+    return false;
+  }
+
+}
 
 ///@brief Generate a monte carlo event (ie. read it from file), and put it in the hit vector.
 ///@param[out] event_time_ns Time when event occured
@@ -878,6 +921,20 @@ void EventGenFOCAL::generateMonteCarloEventData(uint64_t event_time_ns,
       else // Focal
         pos = Focal::Focal_global_chip_id_to_position(pix.getChipId());
 
+
+      if(mMaskGrid){
+        //std::cout <<pos;
+        //std::cout << ": reduced pixel cluster size from "<<pix_cluster.size() <<" ";
+        for(std::vector<std::shared_ptr<PixelHit>>::iterator pxit=pix_cluster.begin();pxit!=pix_cluster.end();){
+            if(isMasked(pos, *pxit )){
+              pxit = pix_cluster.erase(pxit);
+            } else {
+              ++pxit;
+            }
+        }
+        //std::cout << " to " << pix_cluster.size() << " after masking." << std::endl;
+      }
+      
       // Update hit counters. createCluster() only generates hits for _one_ chip,
       // if pixels are outside matrix boundaries then they are ignored. Hence it is sufficient
       // to add the number of pixels in the cluster, we don't have to check that they all

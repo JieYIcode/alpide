@@ -124,6 +124,9 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
 
   const QCommandLineOption verboseOption({"V", "verbose"}, "Enable verbose output.");
 
+  const QCommandLineOption clusterSizeOption({"cs", "random_cluster_size_mean"}, "Mean cluster size.", "mean cluster size");
+
+
   const QCommandLineOption outputDirPrefixOption({"o", "output_dir_prefix"},
                                                  "Output directory prefix (default: sim_output/). "
                                                  "Simulations are stored in directories named "
@@ -153,6 +156,7 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
   parser.addOption(layer5HitDensityOption);
   parser.addOption(layer6HitDensityOption);
   parser.addOption(avgEventRateOption);
+  parser.addOption(clusterSizeOption);
   parser.addOption(systemContPeriodOption);
   parser.addOption(triggerDelayOption);
   parser.addOption(triggerFilterTimeOption);
@@ -209,6 +213,8 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
     if(parser.isSet(singleChipOption)) {
       settings->setValue("simulation/single_chip", "true");
     }
+
+
 
     if(parser.isSet(numEventsOption)) {
       parser.value(numEventsOption).toULong(&conversion_ok, 10);
@@ -356,6 +362,19 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
       }
     }
 
+    if(parser.isSet(clusterSizeOption)) {
+      std::cout << parser.value(clusterSizeOption).toStdString() << std::endl;
+      parser.value(clusterSizeOption).toDouble(&conversion_ok) ;
+
+      if(conversion_ok == false) {
+        std::cout << "Error parsing random cluster size mean." << std::endl;
+        start_program = false;
+      } else {
+        settings->setValue("event/random_cluster_size_mean", parser.value(clusterSizeOption));
+      }
+    }
+
+
     if(parser.isSet(triggerDelayOption)) {
       parser.value(triggerDelayOption).toULong(&conversion_ok, 10);
 
@@ -383,7 +402,7 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
     }
 
     if(parser.isSet(strobeActiveLengthOption)) {
-      parser.value(strobeActiveLengthOption).toULong(&conversion_ok, 10);
+      parser.value(strobeActiveLengthOption).toULong(&conversion_ok, 10); 
 
       if(conversion_ok == false) {
         std::cout << "Error parsing strobe active length." << std::endl;
@@ -417,10 +436,10 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
         settings->setValue("output_dir_prefix", parser.value(outputDirPrefixOption));
       }
     } else {
-        std::cout << settings->value("General/output_dir_prefix").toString().toStdString() << std::endl;
-        if(settings->value("General/output_dir_prefix").toString().toStdString().length()==0){
+        std::cout << settings->value("output_dir_prefix").toString().toStdString() << std::endl;
+        if(settings->value("output_dir_prefix").toString().toStdString().length()==0){
           std::cout << "Output directory not set by user. Using default output directory."<<std::endl;
-          settings->setValue("General/output_dir_prefix", "sim_output");
+          settings->setValue("output_dir_prefix", "sim_output");
         }
     }
     
