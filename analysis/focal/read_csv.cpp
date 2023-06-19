@@ -116,7 +116,6 @@ std::vector<std::map<std::string, unsigned long> > read_csv(std::string csv_file
   return csv_data;
 }
 
-
 #ifdef TEST
 int main(void)
 {

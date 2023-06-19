@@ -5,8 +5,8 @@
  * @brief  Classes for Focal staves
  */
 
-#ifndef FOCAL_STAVES_HPP
-#define FOCAL_STAVES_HPP
+#ifndef FOCAL_STRINGGROUPS_HPP
+#define FOCAL_STRINGGROUPS_HPP
 
 
 
@@ -18,16 +18,15 @@
 #include "Detector/Focal/FocalDetectorConfig.hpp"
 
 
-namespace Focal {
+namespace FocalStringGroup {
 
-  struct FocalModuleConfig {
+
+  struct FocalStringGroupConfig {
     unsigned int nChips;
     bool mode;                // true: IB mode; false: OB mode
     unsigned int nDataLinks;  // IB: == nChips, OB: == 1 (readout through master)
     unsigned int nCtrlLinks;  // IB: individual chip trigger possible, OB: == 1 (CTRL/Trigger through master)
   };
-
-};
 
 #ifdef LEGACY_SVN
   ///@brief A module for Focal consisting of 8 chips in IB configuration
@@ -129,17 +128,17 @@ namespace Focal {
   private:
     std::shared_ptr<Focal::FocalOuterModule> mOuterModules[OUTER_MODULES_PER_OUTER_STAVE];
   };
-
+  
 #endif   
 
-/*
   ///@brief A module for Focal consisting of 3 chips in OB configuration
   struct FocalStringGroup_O3 : public sc_module
   {
     FocalStringGroup_O3(sc_core::sc_module_name const &name,
                   Detector::DetectorPosition pos,
                   Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
-                  const AlpideConfig& cfg);
+                  const AlpideConfig& cfg
+                );
 
     void addTraces(sc_trace_file *wf, std::string name_prefix) const;
 
@@ -163,7 +162,7 @@ namespace Focal {
   ///@brief A module for Focal consisting of 6 chips in OB configuration
   struct FocalStringGroup_O6 : public sc_module
   {
-    FocalStringGroup_Outer6(sc_core::sc_module_name const &name,
+    FocalStringGroup_O6(sc_core::sc_module_name const &name,
                   Detector::DetectorPosition pos,
                   Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
                   const AlpideConfig& cfg);
@@ -205,6 +204,9 @@ namespace Focal {
       return mChips;
     }
 
+    std::shared_ptr<Alpide> getChip(unsigned int ichip){return mChips.at(ichip);}
+
+
     ControlResponsePayload processCommand(ControlRequestPayload const &request);
 
   private:
@@ -214,108 +216,8 @@ namespace Focal {
     std::array<ControlInitiatorSocket, Focal_Inner3::CHIPS> socket_control_out;
   };
 
-  ///@brief A string group for Focal consisting of 15 chips
-  ///@param nChips Number of alpide chips in the module
-  ///@param mode true: IB mode; false: OB mode (the Alpide with the lowest ID will be the master chip)
-  ///@param singletrigger true: individual CTRL and TRG links for each chip (only possible in IB mode);
-  ///                     false: common CTRL and TRG link for all chips on the module.
-  struct FocalStringGroup : public sc_module
-  {
-    FocalStringGroup(sc_core::sc_module_name const &name,
-                  Detector::DetectorPosition pos,
-                  Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
-                  const AlpideConfig& cfg,
-                  const FocalModuleConfig &_mcfg);
-
-    void addTraces(sc_trace_file *wf, std::string name_prefix) const;
-
-    sc_in_clk s_system_clk_in;
-    ControlTargetSocket socket_control_in; // Half-module control in
-    std::vector<DataInitiatorSocket> socket_data_out; // IB module data out
-
-    std::vector<std::shared_ptr<Alpide>> getChips(void) const {
-      return mChips;
-    }
-
-    ControlResponsePayload processCommand(ControlRequestPayload const &request);
-
-    // Distribution of ctrl in half-module
-    // will be allocated dynamically in order to allow for flexibel configuration
-    std::vector<ControlInitiatorSocket> socket_control_out;
-
-  private:
-    std::vector<std::shared_ptr<Alpide>> mChips;
-    const FocalModuleConfig mModuleConfig;
-
-
-  };
-
+ 
   
-  ///@brief Focal stave consisting of 15 chips in total:
-  ///       2x "Focal IB string group" (2 x 3 IB chips) + 2x "Focal OB string group" (3 + 6 OB chips)
-  struct FocalInnerString_I3_I3_O3_O6 : public ITS::StaveInterface
-  {
-    FocalInnerString_I3_I3_O3_O6(sc_core::sc_module_name const &name,
-                    Detector::DetectorPosition pos,
-                    Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
-                    const Detector::DetectorConfigBase& cfg);
-    void addTraces(sc_trace_file *wf, std::string name_prefix) const;
-    std::vector<std::shared_ptr<Alpide>> getChips(void) const;
 
-  private:
-    std::shared_ptr<Focal::FocalStringGroup_I3> mInnerModule[Focal_I3_I3_O3_O6::INNERGROUPS][INNER_MODULES_PER_INNER_STAVE];
-    std::shared_ptr<Focal::FocalStringGroup_O3> mOuterModule0[INNER_MODULES_PER_INNER_STAVE];
-    std::shared_ptr<Focal::FocalStringGroup_O6> mOuterModule1[INNER_MODULES_PER_INNER_STAVE];
-
-  };
-
-  ///@brief Focal string consisting of 15 chips in total:
-  ///       3x Focal OB modules of five 5 OB chips each,
-  ///       that is: 5 + 5 + 5 OB chips
-  struct FocalOuterStave : public ITS::StaveInterface
-  {
-    FocalOuterStave(sc_core::sc_module_name const &name,
-                    Detector::DetectorPosition pos,
-                    Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
-                    const Detector::DetectorConfigBase& cfg);
-    void addTraces(sc_trace_file *wf, std::string name_prefix) const;
-    std::vector<std::shared_ptr<Alpide>> getChips(void) const;
-
-  private:
-    std::shared_ptr<Focal::FocalOuterModule> mOuterModules[OUTER_MODULES_PER_OUTER_STAVE];
-  };
-
-  ///@brief Focal string consisting of 15 chips in total:
-  ///       5x "Focal IB string group" (5 x 3 OB chips) 
-  struct FocalOuterString_O3_O3_O3_O3_O3 : public ITS::StaveInterface
-  {
-    FocalOuterString_O3_O3_O3_O3_O3(sc_core::sc_module_name const &name,
-                    Detector::DetectorPosition pos,
-                    Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
-                    const Detector::DetectorConfigBase& cfg);
-    void addTraces(sc_trace_file *wf, std::string name_prefix) const;
-    std::vector<std::shared_ptr<Alpide>> getChips(void) const;
-
-  private:
-    std::shared_ptr<Focal::FocalStringGroup_O3> mOuterModule[Focal_O3_O3_O3_O3_O3::GROUPS][OUTER_MODULES_PER_INNER_STAVE];
-  };
-
-  ///@brief Focal string consisting of 15 chips in total:
-  ///       5x "Focal IB string group" (5 x 3 OB chips) 
-  struct FocalOuterString_O3_O6_O6 : public ITS::StaveInterface
-  {
-    FocalOuterString_O3_O6_O6(sc_core::sc_module_name const &name,
-                    Detector::DetectorPosition pos,
-                    Detector::t_position_to_global_chip_id_func position_to_global_chip_id_func,
-                    const Detector::DetectorConfigBase& cfg);
-    void addTraces(sc_trace_file *wf, std::string name_prefix) const;
-    std::vector<std::shared_ptr<Alpide>> getChips(void) const;
-
-  private:
-    std::shared_ptr<Focal::FocalStringGroup_O3> mOuterModule[Focal_O3_O6_O6::O3_GROUPS][OUTER_MODULES_PER_INNER_STAVE];
-    std::shared_ptr<Focal::FocalStringGroup_O6> mOuterModule[Focal_O3_O6_O6::O6_GROUPS][OUTER_MODULES_PER_INNER_STAVE];
-  };
-
-*/
-
+}
 #endif

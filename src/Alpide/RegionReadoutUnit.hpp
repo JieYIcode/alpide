@@ -179,6 +179,7 @@ public:
   bool regionValidFSM(void);
   void regionHeaderFSM(void);
   void addTraces(sc_trace_file *wf, std::string name_prefix) const;
+  ~RegionReadoutUnit();
 };
 
 

@@ -263,6 +263,7 @@ public:
   uint64_t getDataWordCount(AlpideDataType dw) const {
     if(mDataWordCount->find(dw) != mDataWordCount->end()) return (*mDataWordCount)[dw]; else return 0;
   }
+  ~Alpide();
 };
 
 

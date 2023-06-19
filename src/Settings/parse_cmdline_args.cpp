@@ -98,6 +98,10 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
   const QCommandLineOption avgEventRateOption({"r", "rate"},
                                               "Average event rate (specified in nanoseconds).",
                                               "rate");
+  
+  const QCommandLineOption systemContPeriodOption({"p", "system_continuous_period_ns"},
+                                              "System continuous period (specified in nanoseconds).",
+                                              "system_continuous_period_ns");
 
   const QCommandLineOption triggerDelayOption({"td", "trig_delay"},
                                               "Trigger delay (specified in nanoseconds).",
@@ -120,11 +124,17 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
 
   const QCommandLineOption verboseOption({"V", "verbose"}, "Enable verbose output.");
 
+  const QCommandLineOption clusterSizeOption({"cs", "random_cluster_size_mean"}, "Mean cluster size.", "mean cluster size");
+
+
   const QCommandLineOption outputDirPrefixOption({"o", "output_dir_prefix"},
                                                  "Output directory prefix (default: sim_output/). "
                                                  "Simulations are stored in directories named "
                                                  "\"run_<sequence num>\" in this directory",
                                                  "output_dir_prefix");
+  const QCommandLineOption mcFocalInputFileOption({"mc", "monte_carlo_file_path"},
+                                                 "Focal MC input filepath.",
+                                                 "monte_carlo_file_path");
 
   const QCommandLineOption helpOption = parser.addHelpOption();
   const QCommandLineOption versionOption = parser.addVersionOption();
@@ -146,6 +156,8 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
   parser.addOption(layer5HitDensityOption);
   parser.addOption(layer6HitDensityOption);
   parser.addOption(avgEventRateOption);
+  parser.addOption(clusterSizeOption);
+  parser.addOption(systemContPeriodOption);
   parser.addOption(triggerDelayOption);
   parser.addOption(triggerFilterTimeOption);
   parser.addOption(triggerFilterOption);
@@ -153,6 +165,7 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
   parser.addOption(strobeInactiveLengthOption);
   parser.addOption(verboseOption);
   parser.addOption(outputDirPrefixOption);
+  parser.addOption(mcFocalInputFileOption);
 
 
   // Process the actual command line arguments given by the user
@@ -200,6 +213,8 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
     if(parser.isSet(singleChipOption)) {
       settings->setValue("simulation/single_chip", "true");
     }
+
+
 
     if(parser.isSet(numEventsOption)) {
       parser.value(numEventsOption).toULong(&conversion_ok, 10);
@@ -335,6 +350,30 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
         settings->setValue("event/average_event_rate_ns", parser.value(avgEventRateOption));
       }
     }
+    
+    if(parser.isSet(systemContPeriodOption)) {
+      parser.value(systemContPeriodOption).toULong(&conversion_ok, 10);
+
+      if(conversion_ok == false) {
+        std::cout << "Error parsing system continuous period option." << std::endl;
+        start_program = false;
+      } else {
+        settings->setValue("simulation/system_continuous_period_ns", parser.value(systemContPeriodOption));
+      }
+    }
+
+    if(parser.isSet(clusterSizeOption)) {
+      std::cout << parser.value(clusterSizeOption).toStdString() << std::endl;
+      parser.value(clusterSizeOption).toDouble(&conversion_ok) ;
+
+      if(conversion_ok == false) {
+        std::cout << "Error parsing random cluster size mean." << std::endl;
+        start_program = false;
+      } else {
+        settings->setValue("event/random_cluster_size_mean", parser.value(clusterSizeOption));
+      }
+    }
+
 
     if(parser.isSet(triggerDelayOption)) {
       parser.value(triggerDelayOption).toULong(&conversion_ok, 10);
@@ -363,7 +402,7 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
     }
 
     if(parser.isSet(strobeActiveLengthOption)) {
-      parser.value(strobeActiveLengthOption).toULong(&conversion_ok, 10);
+      parser.value(strobeActiveLengthOption).toULong(&conversion_ok, 10); 
 
       if(conversion_ok == false) {
         std::cout << "Error parsing strobe active length." << std::endl;
@@ -397,7 +436,20 @@ QSettings* parseCommandLine(QCommandLineParser &parser,
         settings->setValue("output_dir_prefix", parser.value(outputDirPrefixOption));
       }
     } else {
-      settings->setValue("output_dir_prefix", "sim_output");
+        std::cout << settings->value("output_dir_prefix").toString().toStdString() << std::endl;
+        if(settings->value("output_dir_prefix").toString().toStdString().length()==0){
+          std::cout << "Output directory not set by user. Using default output directory."<<std::endl;
+          settings->setValue("output_dir_prefix", "sim_output");
+        }
+    }
+    
+    if(parser.isSet(mcFocalInputFileOption)) {
+      if(parser.value(mcFocalInputFileOption).length() == 0) {
+        std::cout << "Error parsing MC input file option" << std::endl;
+        start_program = false;
+      } else {
+        settings->setValue("focal/monte_carlo_file_path", parser.value(mcFocalInputFileOption));
+      }
     }
   }
 

@@ -14,7 +14,7 @@
 #include <QDir>
 #include "Alpide/alpide_constants.hpp"
 #include "../utils.hpp"
-#include "EventGenITS.hpp"
+#include "EventGenFOCAL.hpp"
 #include "EventXMLITS.hpp"
 #include "EventBinaryITS.hpp"
 #include "Detector/Focal/FocalDetectorConfig.hpp"
@@ -23,6 +23,7 @@
 #include "EventRootFocal.hpp"
 #endif
 
+//#define PIXEL_DEBUG
 
 using boost::random::uniform_int_distribution;
 using boost::random::normal_distribution;
@@ -30,29 +31,31 @@ using boost::random::exponential_distribution;
 using boost::random::discrete_distribution;
 
 
-SC_HAS_PROCESS(EventGenITS);
-///@brief Constructor for EventGenITS
+SC_HAS_PROCESS(EventGenFOCAL);
+///@brief Constructor for EventGenFOCAL
 ///@param[in] name SystemC module name
 ///@param[in] config Detector configuration (number of layers/staves etc.)
 ///@param[in] settings QSettings object with simulation settings.
 ///@param[in] output_path Directory path to store simulation output data in
-EventGenITS::EventGenITS(sc_core::sc_module_name name,
+EventGenFOCAL::EventGenFOCAL(sc_core::sc_module_name name,
                          Detector::DetectorConfigBase config,
                          const QSettings* settings,
                          std::string output_path)
   : EventGenBase(name, settings, output_path)
   , mDetectorConfig(config)
 {
-  mBunchCrossingRate_ns = settings->value("its/bunch_crossing_rate_ns").toInt();
+  mBunchCrossingRate_ns = settings->value("focal/bunch_crossing_rate_ns").toInt();
   mAverageEventRate_ns = settings->value("event/average_event_rate_ns").toInt();
+
+  mMaskGrid = settings->value("focal/mask_grid").toBool();
+  mMaskGridConstant = settings->value("focal/mask_grid_constant").toInt();
 
   if(mRandomHitGeneration) {
     initRandomHitGen(settings);
   } else {
-    if(mSimType == "its" && mRandomClusterGeneration) {
-      throw std::runtime_error("Random cluster generation for ITS MC sim (data includes clusters)");
-    }
-
+    //if(mSimType == "focal" && mRandomClusterGeneration) {
+    //  throw std::runtime_error("Random cluster generation for FOCAL MC sim (data includes clusters)");
+    //}
     initMonteCarloHitGen(settings);
   }
 
@@ -61,6 +64,7 @@ EventGenITS::EventGenITS(sc_core::sc_module_name name,
 
   if(mCreateCSVFile){
     initCsvEventFileHeader(settings);
+    initPhysicsEventRootFile(settings);
   }
 
 
@@ -75,12 +79,12 @@ EventGenITS::EventGenITS(sc_core::sc_module_name name,
 
 
 ///@brief Destructor for EventGenITS class
-EventGenITS::~EventGenITS()
+EventGenFOCAL::~EventGenFOCAL()
 {
 
-  std::cout << "EventGenITS destructor called...\t" << std::endl;
+  std::cout << "EventGenFOCAL destructor called...\t" << std::endl;
   if(mRandomHitGeneration) {
-    for(unsigned int layer = 0; layer < ITS::N_LAYERS; layer++) {
+    for(unsigned int layer = 0; layer < Focal::N_LAYERS; layer++) {
       delete mRandChipID[layer];
       delete mRandStave[layer];
       delete mRandSubStave[layer];
@@ -92,20 +96,26 @@ EventGenITS::~EventGenITS()
     delete mRandHitMultiplicity;
   }
 
-  delete mRandEventTime;
+  if(mRandEventTime!= nullptr) delete mRandEventTime;
 
   if(mPhysicsEventsCSVFile.is_open())
     mPhysicsEventsCSVFile.close();
 
- 
+  if(mPhysicsEventRootFile->IsOpen()){
+    mPhysicsEventRootFile->cd();
+    mPhysicsEventTree->Write();
+    mPhysicsEventRootFile->Close();
+  }
+  delete mPhysicsEventRootFile;
+  delete mFocalEvents;
 
-  std::cout << "...EventGenITS destructor finished." << std::endl;
+  std::cout << "...EventGenFOCAL destructor finished." << std::endl;
 }
 
 
-void EventGenITS::initRandomHitGen(const QSettings* settings)
+void EventGenFOCAL::initRandomHitGen(const QSettings* settings)
 {
-  QString multipl_dist_file = settings->value("its/hit_multiplicity_distribution_file").toString();
+  QString multipl_dist_file = settings->value("focal/hit_multiplicity_distribution_file").toString();
 
   // Read multiplicity distribution from file,
   // and initialize boost::random discrete distribution with data
@@ -120,7 +130,7 @@ void EventGenITS::initRandomHitGen(const QSettings* settings)
   double multpl_dist_mean = normalizeDiscreteDistribution(mult_dist);
 
   if(mSingleChipSimulation) {
-    mSingleChipHitDensity = settings->value("its/hit_density_layer0").toDouble();
+    mSingleChipHitDensity = settings->value("focal/hit_density_layer0").toDouble();
     mSingleChipDetectorArea = CHIP_WIDTH_CM * CHIP_HEIGHT_CM;
     mSingleChipHitAverage = mSingleChipHitDensity * mSingleChipDetectorArea;
     mSingleChipMultiplicityScaleFactor = mSingleChipHitAverage / multpl_dist_mean;
@@ -138,18 +148,13 @@ void EventGenITS::initRandomHitGen(const QSettings* settings)
     std::cout << "Chip multiplicity distr. scaling factor: ";
     std::cout << mMultiplicityScaleFactor[0] << std::endl;
   } else {
-    mHitDensities[0] = settings->value("its/hit_density_layer0").toDouble();
-    mHitDensities[1] = settings->value("its/hit_density_layer1").toDouble();
-    mHitDensities[2] = settings->value("its/hit_density_layer2").toDouble();
-    mHitDensities[3] = settings->value("its/hit_density_layer3").toDouble();
-    mHitDensities[4] = settings->value("its/hit_density_layer4").toDouble();
-    mHitDensities[5] = settings->value("its/hit_density_layer5").toDouble();
-    mHitDensities[6] = settings->value("its/hit_density_layer6").toDouble();
+    mHitDensities[0] = settings->value("focal/hit_density_layer0").toDouble();
+    mHitDensities[1] = settings->value("focal/hit_density_layer1").toDouble();
 
-    for(unsigned int layer = 0; layer < ITS::N_LAYERS; layer++) {
+    for(unsigned int layer = 0; layer < Focal::N_LAYERS; layer++) {
       mDetectorArea[layer] =
-        ITS::STAVES_PER_LAYER[layer] *
-        ITS::CHIPS_PER_STAVE_IN_LAYER[layer] *
+        Focal::STRINGS_PER_LAYER *
+        Focal::CHIPS_PER_FOCAL_STAVE *
         CHIP_WIDTH_CM *
         CHIP_HEIGHT_CM;
 
@@ -157,7 +162,7 @@ void EventGenITS::initRandomHitGen(const QSettings* settings)
       mMultiplicityScaleFactor[layer] = mHitAverage[layer] / multpl_dist_mean;
 
       // Number of chips to actually simulate
-      mNumChips += mDetectorConfig.layer[layer].num_staves * ITS::CHIPS_PER_STAVE_IN_LAYER[layer];
+      mNumChips += mDetectorConfig.layer[layer].num_staves * Focal::CHIPS_PER_STRING;
 
       std::cout << "Num chips so far: " << mNumChips << std::endl;
 
@@ -178,28 +183,28 @@ void EventGenITS::initRandomHitGen(const QSettings* settings)
   mRandHitChipX = new uniform_int_distribution<int>(0, N_PIXEL_COLS-1);
   mRandHitChipY = new uniform_int_distribution<int>(0, N_PIXEL_ROWS-1);
 
-  for(unsigned int layer = 0; layer < ITS::N_LAYERS; layer++) {
+  for(unsigned int layer = 0; layer < Focal::N_LAYERS; layer++) {
     // Modules are not used for IB layers..
     if(layer > 2) {
       mRandSubStave[layer] =
-        new uniform_int_distribution<int>(0, ITS::SUB_STAVES_PER_STAVE[layer]-1);
+        new uniform_int_distribution<int>(0, Focal::STRINGS_PER_LAYER-1);
       mRandModule[layer] =
-        new uniform_int_distribution<int>(0, ITS::MODULES_PER_SUB_STAVE_IN_LAYER[layer]-1);
+        new uniform_int_distribution<int>(0, Focal::STRINGS_PER_LAYER-1);
     } else {
       mRandSubStave[layer] = nullptr;
       mRandModule[layer] = nullptr;
     }
 
     mRandChipID[layer] =
-      new uniform_int_distribution<int>(0, ITS::CHIPS_PER_MODULE_IN_LAYER[layer]-1);
+      new uniform_int_distribution<int>(0,Focal::CHIPS_PER_STRING-1);
 
     mRandStave[layer] =
-      new uniform_int_distribution<int>(0, ITS::STAVES_PER_LAYER[layer]-1);
+      new uniform_int_distribution<int>(0, Focal::STRINGS_PER_LAYER-1);
   }
 }
 
 
-void EventGenITS::initMonteCarloHitGen(const QSettings* settings)
+void EventGenFOCAL::initMonteCarloHitGen(const QSettings* settings)
 {
   QString monte_carlo_file_type = settings->value("event/monte_carlo_file_type").toString();
   QString monte_carlo_event_path_str = settings->value("its/monte_carlo_dir_path").toString();
@@ -207,43 +212,12 @@ void EventGenITS::initMonteCarloHitGen(const QSettings* settings)
   QDir monte_carlo_event_dir(monte_carlo_event_path_str);
   QStringList name_filters;
 
-  if(monte_carlo_file_type == "xml" && mSimType == "its") {
-    name_filters << "*.xml";
-    QStringList MC_files = monte_carlo_event_dir.entryList(name_filters);
-
-    if(MC_files.isEmpty()) {
-      std::cerr << "Error: No .xml files found in MC event path";
-      std::cerr << std::endl;
-      exit(-1);
-    }
-
-    mMCPhysicsEvents = new EventXMLITS(mDetectorConfig,
-                                       &ITS::ITS_global_chip_id_to_position,
-                                       &ITS::ITS_position_to_global_chip_id,
-                                       monte_carlo_event_path_str,
-                                       MC_files,
-                                       true,
-                                       mRandomSeed);
+  if(mSimType == "its"){
+    std::cerr << "Error: class EventGenFOCAL not supported for ITS simulation" << std::endl;
+    exit(-1);
   }
-  else if(monte_carlo_file_type == "binary" && mSimType == "its") {
-    name_filters << "*.dat";
-    QStringList MC_files = monte_carlo_event_dir.entryList(name_filters);
-
-    if(MC_files.isEmpty()) {
-      std::cerr << "Error: No binary .dat files found in MC event path";
-      std::cerr << std::endl;
-      exit(-1);
-    }
-
-    mMCPhysicsEvents = new EventBinaryITS(mDetectorConfig,
-                                          &ITS::ITS_global_chip_id_to_position,
-                                          &ITS::ITS_position_to_global_chip_id,
-                                          monte_carlo_event_path_str,
-                                          MC_files,
-                                          true,
-                                          mRandomSeed);
-  }
-  else if(mSimType == "focal") {
+#ifdef ROOT_ENABLED
+  else if( (monte_carlo_file_type == "root") && mSimType == "focal") {
     unsigned int random_seed = mRandomSeed;
 
     if(random_seed == 0) {
@@ -251,8 +225,22 @@ void EventGenITS::initMonteCarloHitGen(const QSettings* settings)
       random_seed = r();
     }
 
-    std::cerr << "EventGenITS error: Use EventGenFOCAL for Focal simulation." << std::endl;
+    std::cout << "Starting simulation for Focal with MCFileType "<< "root" << "..." << std::endl;    
+    mFocalEvents = new EventRootFocal(mDetectorConfig,
+                                      &Focal::Focal_global_chip_id_to_position,
+                                      &Focal::Focal_position_to_global_chip_id,
+                                      monte_carlo_focal_data_file_str,
+				                              mDetectorConfig.staves_per_quadrant,
+                                      random_seed,
+                                      mOutputPath,
+				      false);
+    std::cout << "... started." << std::endl;
+
+
+#else
+    std::cerr << "Error: Simulation must be compiled with ROOT or AliRoot support for Focal simulation." << std::endl;
     exit(-1);
+#endif
 
   }
   else if(mSimType == "focal") {
@@ -344,7 +332,7 @@ void EventGenITS::initMonteCarloHitGen(const QSettings* settings)
 }
 
 
-void EventGenITS::initCsvEventFileHeader(const QSettings* settings)
+void EventGenFOCAL::initCsvEventFileHeader(const QSettings* settings)
 {
   std::string physics_events_csv_filename = mOutputPath + std::string("/physics_events_data.csv");
   mPhysicsEventsCSVFile.open(physics_events_csv_filename);
@@ -385,9 +373,71 @@ void EventGenITS::initCsvEventFileHeader(const QSettings* settings)
   mPhysicsEventsCSVFile << std::endl;
 }
 
+#ifdef ROOT_ENABLED 
 
+void EventGenFOCAL::initPhysicsEventRootFile(const QSettings *settings){
 
-void EventGenITS::addCsvEventLine(uint64_t t_delta,
+  std::string physics_event_root_filename = mOutputPath + std::string("/PhysicsEventData.root");
+  mPhysicsEventRootFile = TFile::Open(physics_event_root_filename.c_str(), "RECREATE");
+  mPhysicsEventRootFile->cd();
+
+  mPhysicsEventTree = new TTree("mPhysicsEvents", "Physics event tree of AlpideSystemC simulation");
+  mPhysicsEventTree->Branch("tDelta", &mPhysicsEventData.tDelta);
+  mPhysicsEventTree->Branch("tNow", &mPhysicsEventData.tNow);
+  mPhysicsEventTree->Branch("globalNHits", &mPhysicsEventData.globalNHits);
+  mPhysicsEventTree->Branch("globalNLayer0", &mPhysicsEventData.globalNHitsLayer0);
+  mPhysicsEventTree->Branch("globalNLayer1", &mPhysicsEventData.globalNHitsLayer1);
+
+  mPhysicsEventTree->Branch("layerId", &mPhysicsEventData.layerId);
+  mPhysicsEventTree->Branch("staveId", &mPhysicsEventData.staveId);
+  mPhysicsEventTree->Branch("chipId", &mPhysicsEventData.chipId);
+  mPhysicsEventTree->Branch("nHits", &mPhysicsEventData.nHits);
+
+  mPhysicsEventTree->SetMaxTreeSize(0x8000000);
+}
+
+#endif
+
+void EventGenFOCAL::fillPhysicsEventRootFile(uint64_t t_now, uint64_t t_delta,
+                                  unsigned int event_pixel_hit_count,
+                                  std::map<unsigned int, unsigned int> &chip_hits,
+                                  std::map<unsigned int, unsigned int> &layer_hits){
+  mPhysicsEventData.tNow = t_now;
+  mPhysicsEventData.tDelta = t_delta;
+  mPhysicsEventData.globalNHits = event_pixel_hit_count;
+  mPhysicsEventData.globalNHitsLayer0 = layer_hits[0];
+  mPhysicsEventData.globalNHitsLayer1 = layer_hits[1];
+
+  mPhysicsEventData.layerId.clear();
+  mPhysicsEventData.staveId.clear();
+  mPhysicsEventData.staveChipId.clear();
+  mPhysicsEventData.chipId.clear();
+  mPhysicsEventData.nHits.clear();
+  // Write multiplicity for the chips that were included in the simulation
+  for(unsigned int layer = 0; layer < Focal::N_LAYERS; layer++) {
+    unsigned int chip_id = Focal::CUMULATIVE_CHIP_COUNT_AT_LAYER[layer];
+    for(unsigned int stave = 0; stave < mDetectorConfig.layer[layer].num_staves; stave++) {
+      for(unsigned int stave_chip = 0; stave_chip < Focal::CHIPS_PER_STRING; stave_chip++) {
+        if(chip_hits[chip_id]!=0){
+          mPhysicsEventData.layerId.push_back(layer);
+          mPhysicsEventData.staveId.push_back(stave);
+          mPhysicsEventData.staveChipId.push_back(stave_chip);
+          mPhysicsEventData.chipId.push_back(chip_id);
+          mPhysicsEventData.nHits.push_back(chip_hits[chip_id]);
+        }
+        chip_id++;
+      }
+    }
+  }
+  
+  mPhysicsEventRootFile = mPhysicsEventTree->GetCurrentFile();
+
+  mPhysicsEventRootFile->cd();
+  mPhysicsEventTree->Fill();
+
+}
+
+void EventGenFOCAL::addCsvEventLine(uint64_t t_delta,
                                   unsigned int event_pixel_hit_count,
                                   std::map<unsigned int, unsigned int> &chip_hits,
                                   std::map<unsigned int, unsigned int> &layer_hits)
@@ -396,24 +446,7 @@ void EventGenITS::addCsvEventLine(uint64_t t_delta,
   mPhysicsEventsCSVFile << t_delta << ";" << event_pixel_hit_count;
 
 
-  if(mSimType == "its") {
-    // Write multiplicity for whole layers of detectors (of included layers)
-    for(unsigned int layer = 0; layer < ITS::N_LAYERS; layer++) {
-      if(mDetectorConfig.layer[layer].num_staves > 0)
-        mPhysicsEventsCSVFile << ";" << layer_hits[layer];
-    }
-
-    // Write multiplicity for the chips that were included in the simulation
-    for(unsigned int layer = 0; layer < ITS::N_LAYERS; layer++) {
-      unsigned int chip_id = ITS::CUMULATIVE_CHIP_COUNT_AT_LAYER[layer];
-      for(unsigned int stave = 0; stave < mDetectorConfig.layer[layer].num_staves; stave++) {
-        for(unsigned int stave_chip = 0; stave_chip < ITS::CHIPS_PER_STAVE_IN_LAYER[layer]; stave_chip++) {
-          mPhysicsEventsCSVFile << ";" << chip_hits[chip_id];
-          chip_id++;
-        }
-      }
-    }
-  } else if(mSimType == "focal") {
+  if(mSimType == "focal") {
     // Write multiplicity for whole layers of detectors (of included layers)
     for(unsigned int layer = 0; layer < Focal::N_LAYERS; layer++) {
       if(mDetectorConfig.layer[layer].num_staves > 0)
@@ -441,7 +474,7 @@ void EventGenITS::addCsvEventLine(uint64_t t_delta,
 ///       and which are typically triggered on.
 ///@return Const reference to std::vector<std::shared_ptr<PixelHit>> that
 ///        contains the hits in the latest event.
-const std::vector<std::shared_ptr<PixelHit>>& EventGenITS::getTriggeredEvent(void) const
+const std::vector<std::shared_ptr<PixelHit>>& EventGenFOCAL::getTriggeredEvent(void) const
 {
   return mEventHitVector;
 }
@@ -450,7 +483,7 @@ const std::vector<std::shared_ptr<PixelHit>>& EventGenITS::getTriggeredEvent(voi
 ///@brief Get a reference to the next "untriggered" event. In this event generator this is
 ///       used for QED and noise events, processes that happens continuously.
 ///@return Const reference to std::vector<Hit> that contains the hits in the latest event.
-const std::vector<std::shared_ptr<PixelHit>>& EventGenITS::getUntriggeredEvent(void) const
+const std::vector<std::shared_ptr<PixelHit>>& EventGenFOCAL::getUntriggeredEvent(void) const
 {
   return mQedNoiseHitVector;
 }
@@ -460,7 +493,7 @@ const std::vector<std::shared_ptr<PixelHit>>& EventGenITS::getUntriggeredEvent(v
 ///       There is a generator for event time which is always used.
 ///       And if random event generation is enabled (no monte carlo input), then the generators
 ///       for random multiplicity and random hit coords are used.
-void EventGenITS::initRandomNumGen(const QSettings* settings)
+void EventGenFOCAL::initRandomNumGen(const QSettings* settings)
 {
   // Multiplied by BC rate so that the distribution is related to the clock cycles
   // Which is fine because physics events will be in sync with 40MHz BC clock, but
@@ -520,7 +553,7 @@ void EventGenITS::initRandomNumGen(const QSettings* settings)
 ///@param[out] dist_vector Reference to vector to store the distribution in
 ///@throw runtime_error If the file can not be opened
 ///@throw domain_error If a negative x-value (hits) or y-value (probability) is encountered in the file
-void EventGenITS::readDiscreteDistributionFile(const char* filename, std::vector<double> &dist_vector) const
+void EventGenFOCAL::readDiscreteDistributionFile(const char* filename, std::vector<double> &dist_vector) const
 {
   std::ifstream in_file(filename);
 
@@ -562,7 +595,7 @@ void EventGenITS::readDiscreteDistributionFile(const char* filename, std::vector
 ///               this vector will be overwritten and replaced with the new, normalized, distribution.
 ///@throw runtime_error If dist_vector is empty, a runtime_error is thrown.
 ///@return Mean value in normalized distribution
-double EventGenITS::normalizeDiscreteDistribution(std::vector<double> &dist_vector)
+double EventGenFOCAL::normalizeDiscreteDistribution(std::vector<double> &dist_vector)
 {
   double probability_sum = 0.0;
   double probability_sum_normalized = 0.0;
@@ -604,7 +637,7 @@ double EventGenITS::normalizeDiscreteDistribution(std::vector<double> &dist_vect
 ///@return Number of hits
 ///@throw  runtime_error if the EventGenITS for some reason does not have
 ///                      a multiplicity distribution initialized.
-unsigned int EventGenITS::getRandomMultiplicity(void)
+unsigned int EventGenFOCAL::getRandomMultiplicity(void)
 {
     unsigned int n_hits = (*mRandHitMultiplicity)(mRandHitMultiplicityGen);
     return n_hits;
@@ -617,7 +650,7 @@ unsigned int EventGenITS::getRandomMultiplicity(void)
 ///            for all layers/chips, including chips/layers that are excluded from the simulation
 ///@param[out] chip_hits Map with number of pixel hits for this event per chip ID
 ///@param[out] layer_hits Map with number of pixel hits for this event per layer
-void EventGenITS::generateRandomEventData(uint64_t event_time_ns,
+void EventGenFOCAL::generateRandomEventData(uint64_t event_time_ns,
                                           unsigned int &event_pixel_hit_count,
                                           std::map<unsigned int, unsigned int> &chip_hits,
                                           std::map<unsigned int, unsigned int> &layer_hits)
@@ -687,8 +720,7 @@ void EventGenITS::generateRandomEventData(uint64_t event_time_ns,
       mEventHitVector.push_back(pix4_shared);
     }
   } else if(n_particle_hits_unscaled > 0) { // Generate hits for each layer in ITS detector simulation
-    for(unsigned int layer = 0; layer < ITS::N_LAYERS; layer++) {
-      //for(unsigned int layer = 0; layer < num_layers; layer++) {
+    for(unsigned int layer = 0; layer < Focal::N_LAYERS; layer++) {
 
       // Skip this layer if no staves are configured for this
       // layer in simulation settings file
@@ -748,7 +780,7 @@ void EventGenITS::generateRandomEventData(uint64_t event_time_ns,
                                           rand_module_id,
                                           rand_chip_id};
 
-        unsigned int global_chip_id = ITS::ITS_position_to_global_chip_id(pos);
+        unsigned int global_chip_id = Focal::Focal_position_to_global_chip_id(pos);
 
 #ifdef PIXEL_DEBUG
         std::cerr << "Created hit for: chip_id: " << global_chip_id;
@@ -795,6 +827,41 @@ void EventGenITS::generateRandomEventData(uint64_t event_time_ns,
   } // Detector simulation
 }
 
+bool EventGenFOCAL::gridMasked(std::shared_ptr<PixelHit> pixhit){
+
+  // if the row and the col does lie on a masked col/row return false;
+  if( !(pixhit->getCol()%mMaskGridConstant) || !(pixhit->getRow()%mMaskGridConstant) ) {
+    //std::cout<<"\tMasked chipid"<<pixhit->getChipId()<<"\t("<<pixhit->getCol()<<","<<pixhit->getRow()<<")"<<std::endl;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool EventGenFOCAL::isMasked(Detector::DetectorPosition pos, std::shared_ptr<PixelHit> pixhit){
+
+  // select only the 6 most inner staves
+  if( (pos.stave_id % Focal::STAVES_PER_QUADRANT) < 6){
+    if( (pos.stave_id%Focal::STAVES_PER_QUADRANT) < 3 ){
+      if( (pos.module_id==0) && (pos.module_chip_id==0) ){
+        //std::cout << pos <<"\t" << pixhit->getCol()<<","<<pixhit->getRow()<< std::endl;
+        return gridMasked(pixhit);
+      } else {
+        return false;
+      }
+    } else {
+      if( (pos.module_id==0) && (pos.module_chip_id<=1) ){
+        //std::cout << pos <<"\t" << pixhit->getCol()<<","<<pixhit->getRow()<< std::endl;
+        return gridMasked(pixhit);
+      } else {
+        return false;
+      }
+    }
+  } else {
+    return false;
+  }
+
+}
 
 ///@brief Generate a monte carlo event (ie. read it from file), and put it in the hit vector.
 ///@param[out] event_time_ns Time when event occured
@@ -802,7 +869,7 @@ void EventGenITS::generateRandomEventData(uint64_t event_time_ns,
 ///            for all layers/chips, including chips/layers that are excluded from the simulation
 ///@param[out] chip_hits Map with number of pixel hits for this event per chip ID
 ///@param[out] layer_hits Map with number of pixel hits for this event per layer
-void EventGenITS::generateMonteCarloEventData(uint64_t event_time_ns,
+void EventGenFOCAL::generateMonteCarloEventData(uint64_t event_time_ns,
                                               unsigned int &event_pixel_hit_count,
                                               std::map<unsigned int, unsigned int> &chip_hits,
                                               std::map<unsigned int, unsigned int> &layer_hits)
@@ -815,11 +882,16 @@ void EventGenITS::generateMonteCarloEventData(uint64_t event_time_ns,
   if(mSimType == "its"){
     digits = mMCPhysicsEvents->getNextEvent();
   }
-  else if(mSimType == "focal") {
-    throw std::runtime_error("EventGenITS::generateMonteCarloEventData(): Use EventGenFOCAL for FOCAL simulations.");
+  else if(mSimType == "focal" && mMCType=="root") {
+#ifdef ROOT_ENABLED
+    std::cout << "...using digits of type " << mMCType << std::endl;
+    digits = mFocalEvents->getNextEvent();
+#else
+    throw std::runtime_error("EventGenITS::generateMonteCarloEventData(): Compile with ROOT for focal sim.");
+#endif
   }
   else
-    throw std::runtime_error("EventGenITS::generateMonteCarloEventData(): Invalid sim type.");
+    throw std::runtime_error("EventGenFOCAL::generateMonteCarloEventData(): Invalid sim type.");
 
   if(digits == nullptr)
     throw std::runtime_error("EventDigits::getNextEvent() returned no new Monte Carlo event.");
@@ -833,6 +905,8 @@ void EventGenITS::generateMonteCarloEventData(uint64_t event_time_ns,
     const PixelHit &pix = *digit_it;
 
     if(mRandomClusterGeneration) {
+      //std::cout << "starting random cluster generation " << std::endl;
+
       // Create random cluster around pixel hit
 
       std::vector<std::shared_ptr<PixelHit>> pix_cluster = createCluster(pix,
@@ -847,6 +921,20 @@ void EventGenITS::generateMonteCarloEventData(uint64_t event_time_ns,
       else // Focal
         pos = Focal::Focal_global_chip_id_to_position(pix.getChipId());
 
+
+      if(mMaskGrid){
+        //std::cout <<pos;
+        //std::cout << ": reduced pixel cluster size from "<<pix_cluster.size() <<" ";
+        for(std::vector<std::shared_ptr<PixelHit>>::iterator pxit=pix_cluster.begin();pxit!=pix_cluster.end();){
+            if(isMasked(pos, *pxit )){
+              pxit = pix_cluster.erase(pxit);
+            } else {
+              ++pxit;
+            }
+        }
+        //std::cout << " to " << pix_cluster.size() << " after masking." << std::endl;
+      }
+      
       // Update hit counters. createCluster() only generates hits for _one_ chip,
       // if pixels are outside matrix boundaries then they are ignored. Hence it is sufficient
       // to add the number of pixels in the cluster, we don't have to check that they all
@@ -891,7 +979,7 @@ void EventGenITS::generateMonteCarloEventData(uint64_t event_time_ns,
 ///       2) Generate hits for the next event, and put them on the hit queue
 ///       3) Update counters etc.
 ///@return The number of clock cycles until this event will actually occur
-uint64_t EventGenITS::generateNextPhysicsEvent(void)
+uint64_t EventGenFOCAL::generateNextPhysicsEvent(void)
 {
   uint64_t time_now = sc_time_stamp().value();
   unsigned int event_pixel_hit_count = 0;
@@ -920,6 +1008,7 @@ uint64_t EventGenITS::generateNextPhysicsEvent(void)
   // Write event rate and multiplicity numbers to CSV file
   if(mCreateCSVFile){
     addCsvEventLine(t_delta, event_pixel_hit_count, chip_hits, layer_hits);
+    fillPhysicsEventRootFile(time_now, t_delta, event_pixel_hit_count, chip_hits, layer_hits);
   }
 
   if(mTriggeredEventCount % 100 == 0) {
@@ -935,7 +1024,7 @@ uint64_t EventGenITS::generateNextPhysicsEvent(void)
 
 
 ///@brief Generate a QED/Noise event
-void EventGenITS::generateNextQedNoiseEvent(uint64_t event_time_ns)
+void EventGenFOCAL::generateNextQedNoiseEvent(uint64_t event_time_ns)
 {
   mUntriggeredEventCount++;
 
@@ -966,7 +1055,7 @@ void EventGenITS::generateNextQedNoiseEvent(uint64_t event_time_ns)
 
 
 ///@brief SystemC controlled method. Creates new physics events (hits)
-void EventGenITS::physicsEventMethod(void)
+void EventGenFOCAL::physicsEventMethod(void)
 {
   if(mStopEventGeneration == false) {
     uint64_t t_delta = generateNextPhysicsEvent();
@@ -977,7 +1066,7 @@ void EventGenITS::physicsEventMethod(void)
 
 
 ///@brief SystemC controlled method. Creates new QED/Noise events (hits)
-void EventGenITS::qedNoiseEventMethod(void)
+void EventGenFOCAL::qedNoiseEventMethod(void)
 {
   if(mStopEventGeneration == false) {
     uint64_t time_now = sc_time_stamp().value();
@@ -989,7 +1078,7 @@ void EventGenITS::qedNoiseEventMethod(void)
 }
 
 
-void EventGenITS::stopEventGeneration(void)
+void EventGenFOCAL::stopEventGeneration(void)
 {
   mStopEventGeneration = true;
   mEventHitVector.clear();

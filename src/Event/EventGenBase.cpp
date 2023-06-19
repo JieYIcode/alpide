@@ -1,3 +1,4 @@
+
 /**
  * @file   EventGenBase.cpp
  * @author Simon Voigt Nesbo
@@ -15,9 +16,14 @@ EventGenBase::EventGenBase(sc_core::sc_module_name name,
 {
   mOutputPath = output_path;
   mSimType = settings->value("simulation/type").toString().toStdString();
+  mMCType = settings->value("event/monte_carlo_file_type").toString().toStdString();
   mCreateCSVFile = settings->value("data_output/write_event_csv").toBool();
   mRandomHitGeneration = settings->value("event/random_hit_generation").toBool();
   mRandomClusterGeneration = settings->value("event/random_cluster_generation").toBool();
+  mRandomClusterFile = settings->value("event/random_cluster_file").toBool();
+  mRandomClusterFileName = settings->value("event/random_cluster_filename").toString().toStdString();
+  mRandomClusterHistogramName = settings->value("event/random_cluster_histogramname").toString().toStdString();
+
   mRandomSeed = settings->value("simulation/random_seed").toInt();
   mPixelDeadTime = settings->value("alpide/pixel_shaping_dead_time_ns").toInt();
   mPixelActiveTime = settings->value("alpide/pixel_shaping_active_time_ns").toInt();
@@ -32,6 +38,19 @@ EventGenBase::EventGenBase(sc_core::sc_module_name name,
 
 EventGenBase::~EventGenBase()
 {
+  std::cout << "EventGenBase destructor called..." ;
+
+  delete mRandClusterSizeDist;
+  delete mRandClusterXDist;
+  delete mRandClusterYDist;
+
+#ifdef ROOT_ENABLED
+  delete mClusterH;
+  delete mClusterFile;
+
+#endif 
+
+  std::cout << "...EventGenBase destructor finished" << std::endl;
 
 }
 
@@ -57,12 +76,25 @@ EventGenBase::createCluster(const PixelHit& pix,
 
   // Cluster distribution is initialized with mean-1,
   // to account for there always being 1 pixel in a cluster
-  int cluster_size = round((*mRandClusterSizeDist)(mRandClusterSizeGen)) + 1;
+  int cluster_size = 0;
+  if(!mRandomClusterFile){
+    cluster_size = round((*mRandClusterSizeDist)(mRandClusterSizeGen)) + 1;
+  } 
+#ifdef ROOT_ENABLED  
+  else {
+    // -0.5 for correct rounding
+    cluster_size = round(mClusterH->GetRandom()-0.5);
+  }
+#endif
 
   // Don't allow smaller clusters than 1, since gaussian distribution may return
   // negative numbers.
-  if(cluster_size < 1)
+  if(cluster_size < 1){
+    if(mRandomClusterFile){
+      std::cout << "ERROR: Well... this should not have happened with the cluster size distribution you provided" << std::endl;
+    }
     cluster_size = 1;
+  }
 
   //std::cout << "Cluster size: " << cluster_size << std::endl;
 
@@ -82,14 +114,18 @@ EventGenBase::createCluster(const PixelHit& pix,
   // and is already added to the vector
   for(int i = 1; i < cluster_size; i++) {
     do {
+      //std::cout << i << std::endl;
       pixel_already_in_cluster = false;
       skip_pixel_outside_matrix = false;
 
       double rand_x = (*mRandClusterXDist)(mRandClusterXGen);
       double rand_y = (*mRandClusterYDist)(mRandClusterYGen);
 
-      rand_x  = round(rand_x);
-      rand_y  = round(rand_y);
+      //this is a dirty hack here:
+      //for big clusters the cluster generator will never finish
+      //for this reason we multiply the random output times i/4
+      rand_x  = round(rand_x) *((int) (i/4)+1);
+      rand_y  = round(rand_y) *((int) (i/4)+1);
 
       // Create random cluster pixels around base coordinate
       new_cluster_pixel.setCol(pix.getCol() + rand_x);
@@ -102,7 +138,7 @@ EventGenBase::createCluster(const PixelHit& pix,
         }
       }
 
-      // Check if pixel is not within the pixel matrix. If not we consider it part of the
+      // Check if pixel is not within the pixel matrix. If not we don't consider it part of the
       // cluster, but simply skip it since it does not have valid coords
       if(new_cluster_pixel.getCol() < 0 || new_cluster_pixel.getCol() >= N_PIXEL_COLS ||
          new_cluster_pixel.getRow() < 0 || new_cluster_pixel.getRow() >= N_PIXEL_ROWS)
@@ -125,6 +161,8 @@ EventGenBase::createCluster(const PixelHit& pix,
 
 void EventGenBase::initRandomClusterGen(const QSettings* settings)
 {
+
+
   double cluster_size_mean = settings->value("event/random_cluster_size_mean").toDouble();
   double cluster_size_stddev = settings->value("event/random_cluster_size_stddev").toDouble();
 
@@ -152,7 +190,40 @@ void EventGenBase::initRandomClusterGen(const QSettings* settings)
     mRandClusterSizeGen.seed(mRandomSeed);
     mRandClusterXGen.seed(mRandomSeed);
     mRandClusterYGen.seed(mRandomSeed);
+  } 
+
+#ifdef ROOT_ENABLED  
+  if(mRandomClusterFile){
+    if(mRandomClusterFileName.length()==0){
+      std::cout << "ERROR: enabled cluster generation from file, but no filename was specified" << std::endl;
+      exit(-1);
+    }
+    if(mRandomClusterHistogramName.length()==0){
+      std::cout << "ERROR: enabled cluster generation from file, but histogram for randomization was not specified" << std::endl;
+      exit(-1);
+    }
+    
+    mClusterFile = new TFile(mRandomClusterFileName.c_str(), "READ");
+    
+    if(mClusterFile->IsOpen()){
+      std::cout << "Opened " << mRandomClusterFileName << " for random cluster generation" << std::endl;
+      mClusterH = (TH1D*) mClusterFile->Get(mRandomClusterHistogramName.c_str());
+      
+      if(mClusterH==nullptr){
+        std::cout << "ERROR: Could not find TH1D " << mRandomClusterHistogramName << " for random cluster generation" << std::endl;
+        exit(-1);
+      } else {
+        std::cout << "...using TH1D " << mRandomClusterFileName << " with mean=" << mClusterH->GetMean() << " and rms=" << mClusterH->GetRMS() << " for random cluster generation" << std::endl;
+      }
+    
+    } else {
+      std::cout << "ERROR: Could not open " << mRandomClusterFileName << " for random cluster generation" << std::endl;
+      exit(-1);
+    }
+
   }
+#endif
+
 }
 
 void EventGenBase::writeSimulationStats(const std::string output_path) const

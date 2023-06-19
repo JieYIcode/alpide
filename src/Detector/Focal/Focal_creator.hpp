@@ -11,7 +11,10 @@
 #include "FocalDetectorConfig.hpp"
 #include "Detector/Common/ITSModulesStaves.hpp"
 #include "Detector/Focal/FocalStaves.hpp"
+#include "Detector/Focal/FocalStrings.hpp"
+#include "Detector/Focal/FocalStringGroups.hpp"
 #include "ReadoutUnit/ReadoutUnit.hpp"
+#include "Focal_constants.hpp"
 
 #include <vector>
 
@@ -65,17 +68,28 @@ namespace Focal {
         std::vector<bool> data_link_cfg;
 
         // 1200 Mbps links
-        for(unsigned int i = 0; i < Focal::CHIPS_PER_FOCAL_IB_MODULE; i++)
+        for(unsigned int i = 0; i < Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS; i++){
           data_link_cfg.push_back(true);
+        }
 
-        // One 400 Mbps link for the OB (half)-module
-        data_link_cfg.push_back(false);
+        // One 400 Mbps link for the O3 (half)-module
+        for(unsigned int i = 0; i <   Focal_I3_I3_O3_O6::OUTERGROUPS_O3; i++){
+          data_link_cfg.push_back(false);
+        }
+
+        // One 400 Mbps link for the O6 (half)-module
+        for(unsigned int i = 0; i <   Focal_I3_I3_O3_O6::OUTERGROUPS_O6; i++){
+          data_link_cfg.push_back(false);
+        }
+
+        std::cout << data_link_cfg.size() << "\t" << std::endl;
+
 
         return new ReadoutUnit(ru_name.c_str(),
                                mLayerId,
                                stave_id_in_layer,
-                               Focal::CTRL_LINKS_PER_INNER_STAVE,
-                               Focal::DATA_LINKS_PER_INNER_STAVE,
+                               Focal_I3_I3_O3_O6::CTRL_LINKS,
+                               Focal_I3_I3_O3_O6::DATA_LINKS,
                                data_link_cfg,
                                mTriggerFilterTime,
                                mTriggerFilterEnabled,
@@ -84,13 +98,13 @@ namespace Focal {
         // Create RU for Focal outer stave
         std::cout << "Creating outer RU: " << name << std::endl;
         // All 400 Mbps links
-        std::vector<bool> data_link_cfg(Focal::DATA_LINKS_PER_OUTER_STAVE, false);
+        std::vector<bool> data_link_cfg(Focal_O3_O3_O3_O6::DATA_LINKS, false);
 
         return new ReadoutUnit(ru_name.c_str(),
                                mLayerId,
                                stave_id_in_layer,
-                               Focal::CTRL_LINKS_PER_OUTER_STAVE,
-                               Focal::DATA_LINKS_PER_OUTER_STAVE,
+                               Focal_O3_O3_O3_O6::CTRL_LINKS,
+                               Focal_O3_O3_O3_O6::DATA_LINKS,
                                data_link_cfg,
                                mTriggerFilterTime,
                                mTriggerFilterEnabled,
@@ -142,7 +156,7 @@ namespace Focal {
         // Create Focal inner stave
         std::string stave_name = "FI_stave_" + coords_str;
         std::cout << "Creating inner stave: " << name << std::endl;
-        new_stave_ptr = new Focal::FocalInnerStave(stave_name.c_str(),
+        new_stave_ptr = new FocalString::FocalString_I3_I3_O3_O6(stave_name.c_str(),
                                                    pos,
                                                    &Focal::Focal_position_to_global_chip_id,
                                                    mConfig);
@@ -150,7 +164,11 @@ namespace Focal {
         // Create Focal outer stave
         std::string stave_name = "FO_stave_" + coords_str;
         std::cout << "Creating outer stave: " << name << std::endl;
-        new_stave_ptr = new Focal::FocalOuterStave(stave_name.c_str(),
+        //new_stave_ptr = new FocalString::FocalString_O3_O3_O3_O3_O3(stave_name.c_str(),
+        //                                           pos,
+        //                                           &Focal::Focal_position_to_global_chip_id,
+        //                                           mConfig);
+        new_stave_ptr = new FocalString::FocalString_O3_O3_O3_O6(stave_name.c_str(),
                                                    pos,
                                                    &Focal::Focal_position_to_global_chip_id,
                                                    mConfig);

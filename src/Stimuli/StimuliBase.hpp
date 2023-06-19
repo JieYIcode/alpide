@@ -48,6 +48,7 @@ protected:
 public:
   StimuliBase(sc_core::sc_module_name name, QSettings* settings, std::string output_path);
   virtual void addTraces(sc_trace_file *wf) const = 0;
+  //virtual ~StimuliBase() = 0;
 };
 
 

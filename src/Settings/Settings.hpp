@@ -19,6 +19,7 @@
 #include <QDir>
 #include <QString>
 
+#define DEFAULT_OUTPUT_DIR_PREFIX "sim_output"
 
 #define DEFAULT_DATA_OUTPUT_WRITE_VCD "false"
 #define DEFAULT_DATA_OUTPUT_WRITE_VCD_CLOCK "false"
@@ -75,6 +76,12 @@
 
 #define DEFAULT_FOCAL_MONTE_CARLO_FILE_PATH "config/monte_carlo_events/focal/pixel_event_tree_pythia_MB_r4cm.root"
 #define DEFAULT_FOCAL_STAVES_PER_QUADRANT "3"
+#define DEFAULT_FOCAL_INNER_STRING "I3_I3_O3_O6"
+#define DEFAULT_FOCAL_OUTER_STRING "O3_O3_O3_O3_O3"
+#define DEFAULT_FOCAL_BUNCH_CROSSING_RATE_NS "25"
+#define DEFAULT_FOCAL_HIT_MULTIPLICITY_DISTRIBUTION_FILE "config/multipl_dist_focal_raw_bins.txt"
+#define DEFAULT_FOCAL_HIT_DENSITY_LAYER0 "0.1"
+#define DEFAULT_FOCAL_HIT_DENSITY_LAYER1 "0.1"
 
 #define DEFAULT_EVENT_RANDOM_HIT_GENERATION "true"
 #define DEFAULT_EVENT_RANDOM_CLUSTER_GENERATION "false"

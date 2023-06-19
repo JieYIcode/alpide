@@ -152,8 +152,11 @@ ReadoutUnit::ReadoutUnit(sc_core::sc_module_name name,
 
   mDataLinkParsers.resize(n_data_links);
 
-  if(n_data_links != data_link_cfg.size())
-    throw std::runtime_error("ReadoutUnit: n_data_links did not match data_link_cfg size");
+  if(n_data_links != data_link_cfg.size()){
+    std::stringstream errMsg;
+    errMsg <<"ReadoutUnit: n_data_links " << n_data_links << " did not match data_link_cfg size " << data_link_cfg.size();
+    throw std::runtime_error(errMsg.str().c_str());
+  }
 
   for(unsigned int i = 0; i < n_data_links; i++) {
     // Data parsers should not save events, that just eats memory.. :(
@@ -224,24 +227,30 @@ void ReadoutUnit::sendTrigger(void)
   trigger_word.data = mTriggerIdCount-mPreviousTriggerId;
 
   std::string msg = "Send Trigger at: " + sc_core::sc_time_stamp().to_string();
+  std::cout << msg << std::endl;
   SC_REPORT_INFO_VERB(name(),msg.c_str(),sc_core::SC_DEBUG);
 
   uint64_t time_now = sc_time_stamp().value();
   bool filter_trigger = (time_now - mLastTriggerTime) < mTriggerFilterTimeNs;
 
   // Update current trigger ID in the data parsers
-  for(unsigned int i = 0; i < mDataLinkParsers.size(); i++)
+  for(unsigned int i = 0; i < mDataLinkParsers.size(); i++){
+    //std::cout << "\tsetting " << mTriggerIdCount << " on datalinkparser" << i << std::endl;
     mDataLinkParsers[i]->setCurrentTriggerId(mTriggerIdCount);
+  }
 
   // Issue triggers on ALPIDE control links (unless trigger is being filtered)
   for(unsigned int i = 0; i < s_alpide_control_output.size(); i++) {
+    //std::cout << "\tsending trigger on control output " << i << " / " << s_alpide_control_output.size() << std::endl;
     if(mTriggerFilterEnabled && filter_trigger) {
       // Filter triggers that come too close in time
       mTriggerActionMaps[i][mTriggerIdCount] = TRIGGER_FILTERED;
       mTriggersFilteredCount++;
     } else if(true) { ///@todo else if(link_busy[i] == false) {
       // If we are not busy, send trigger
+      //std::cout << "\tsent trigger on control output " << i << std::endl;
       s_alpide_control_output[i]->transport(trigger_word);
+      //std::cout << "\tsent trigger on control output " << i << std::endl;
       mTriggersSentCount[i]++;
       mTriggerActionMaps[i][mTriggerIdCount] = TRIGGER_SENT;
       mPreviousTriggerId = mTriggerIdCount;
@@ -367,8 +376,13 @@ void ReadoutUnit::addTraces(sc_trace_file *wf, std::string name_prefix) const
 
 ///@brief Write simulation stats/data to file
 ///@param[in] output_path Path to simulation output directory
-void ReadoutUnit::writeSimulationStats(const std::string output_path) const
+void ReadoutUnit::writeSimulationStats(const std::string output_path, bool onlyRoot) const
 {
+  #ifdef ROOT_ENABLED
+    writeSimulationStatsROOT(output_path);
+  #endif
+
+  if(onlyRoot) return;
   // ------------------------------------------------------
   // Write data rate CSV file
   // ------------------------------------------------------
@@ -955,9 +969,6 @@ void ReadoutUnit::writeSimulationStats(const std::string output_path) const
 
   ///@todo More ITS/RU stats here..
 
-  #ifdef ROOT_ENABLED
-    writeSimulationStatsROOT(output_path);
-  #endif
 }
 
 #ifdef ROOT_ENABLED
@@ -1018,18 +1029,22 @@ void ReadoutUnit::writeSimulationStatsROOT(const std::string output_path) const{
       busy_tree->Fill();
     }
   }
-  
+ 
+  TTree *datarate_tree = new TTree("DATA_RATE", "data rate of links");
+
   TTree *busyv_tree = new TTree("BUSYV", "busy violations events");
   TTree *abort_tree = new TTree("ABORT", "readout unit trigger abort events");
   TTree *fatal_tree = new TTree("FATAL", "fatal trigger events");
   TTree *flush_tree = new TTree("FLUSHED", "flushed incomplete trigger events");
 
+  writeDataRateTree(datarate_tree);
   writeTriggerEventTree(TRIGGER_EVENT_BUSYV, busyv_tree);
   writeTriggerEventTree(TRIGGER_EVENT_ABORT, abort_tree);
   writeTriggerEventTree(TRIGGER_EVENT_FLUSHED_INCOMPLETE, flush_tree);
   writeTriggerEventTree(TRIGGER_EVENT_FATAL, fatal_tree);
 
   rootfile->cd();
+  datarate_tree->Write();
   busy_tree->Write();
   busyv_tree->Write();
   fatal_tree->Write();
@@ -1041,6 +1056,63 @@ void ReadoutUnit::writeSimulationStatsROOT(const std::string output_path) const{
 
 
 }
+
+void ReadoutUnit::writeDataRateTree(TTree *datarate_tree) const{
+
+  // ------------------------------------------------------
+  // Write data rate root tree
+  // ------------------------------------------------------
+
+  uint64_t data_rate_interval_ns = mDataLinkParsers[0]->getDataIntervalNs();
+  
+  unsigned int link;
+  uint64_t time;
+  uint64_t ratetotal;
+  uint64_t rate;
+
+  datarate_tree->Branch("time", &time);
+  datarate_tree->Branch("link", &link);
+  datarate_tree->Branch("rate", &rate);
+  datarate_tree->Branch("totalRate", &ratetotal);
+
+  // Assuming that each link parser has the recorded the same number of intervals, which should
+  // hold true since they starts and stop at the same time, and use the same interval length
+  for(auto interval_it = mDataLinkParsers[0]->getDataIntervalByteCounts().begin();
+      interval_it != mDataLinkParsers[0]->getDataIntervalByteCounts().end();
+      interval_it++)
+  {
+
+    uint64_t interval_num = interval_it->first;
+    uint64_t data_bytes_total = 0;
+
+    time = interval_num*data_rate_interval_ns;
+
+    // Calculate total data rate (for readout unit)
+    for(unsigned int i = 0; i < mDataLinkParsers.size(); i++) {
+      data_bytes_total += mDataLinkParsers[i]->getDataIntervalByteCounts()[interval_num];
+    }
+
+    // Convert number of bytes in interval to Mbps
+    double data_rate_total_mbps = 8*(data_bytes_total*(1E9/data_rate_interval_ns))/(1E6);
+    //data_rate_csv_file << data_rate_total_mbps;
+    ratetotal = data_rate_total_mbps;
+
+    // Output data rate for each link
+    for(unsigned int i = 0; i < mDataLinkParsers.size(); i++) {
+      uint64_t data_bytes_link = mDataLinkParsers[i]->getDataIntervalByteCounts()[interval_num];
+
+      // Convert number of bytes in interval to Mbps
+      double data_rate_link_mbps = 8*(data_bytes_link*(1E9/data_rate_interval_ns))/(1E6);
+      //data_rate_csv_file << ";" << data_rate_link_mbps;
+      rate = data_rate_link_mbps;
+      link = i;
+
+      datarate_tree->Fill();
+    }
+  }
+
+}
+
 
 void ReadoutUnit::writeTriggerEventTree(ReadoutUnitEventType type, TTree *tree) const
 {
@@ -1097,6 +1169,10 @@ void ReadoutUnit::writeTriggerEventTree(ReadoutUnitEventType type, TTree *tree) 
       }
     }
   }
+}
+
+ReadoutUnit::~ReadoutUnit(){
+  std::cout<<"  ReadoutUnit destructor (RU layer" << mLayerId << ", stave "<< mStaveId << ") called" <<std::endl;
 }
 
 #endif

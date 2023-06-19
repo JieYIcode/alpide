@@ -2,6 +2,7 @@
 build/
 sim_output*/
 debug/
+.vscode/
 
 # Prerequisites
 *.d
@@ -39,3 +40,4 @@ debug/
 # Emacs temp files
 *~
 \#*\#
+

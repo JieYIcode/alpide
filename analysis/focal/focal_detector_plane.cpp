@@ -23,21 +23,23 @@ void create_focal_chip_bins(TH2Poly* th2)
         double y_high = y_low+chip_size_y_mm;
         double x_start = 0;
 
-        if(y_low < Focal::GAP_SIZE_Y_MM/2)
+        if(y_low < Focal::HALF_PATCH_SIZE_Y_MM){
+	  std::cout << quadrant << ", "<< half_patch_num<<", "<<stave_num_in_half_patch<<": "<< y_low << "\t" << Focal::HALF_PATCH_SIZE_Y_MM << std::endl;
           x_start = Focal::GAP_SIZE_X_MM/2;
+	}
 
         for(unsigned int chip_num = 0; chip_num < Focal::CHIPS_PER_STAVE; chip_num++) {
           double x_low = x_start + chip_num*chip_size_x_mm;
           double x_high = x_low+chip_size_x_mm;
 
           if(quadrant == 1) {
-            th2->AddBin(x_low, y_low, x_high, y_high);
+            th2->AddBin(x_low+Focal::SHIFT_X_MM, y_low, x_high+Focal::SHIFT_X_MM, y_high);
           } else if(quadrant == 2) {
-            th2->AddBin(-x_low, y_low, -x_high, y_high);
+            th2->AddBin(-x_low-Focal::SHIFT_X_MM, y_low, -x_high-Focal::SHIFT_X_MM, y_high);
           } else if(quadrant == 3) {
-            th2->AddBin(-x_low, -y_low, -x_high, -y_high);
+            th2->AddBin(-x_low-Focal::SHIFT_X_MM, -y_low, -x_high-Focal::SHIFT_X_MM, -y_high);
           } else {
-            th2->AddBin(x_low, -y_low, x_high, -y_high);
+            th2->AddBin(x_low+Focal::SHIFT_X_MM, -y_low, x_high+Focal::SHIFT_X_MM, -y_high);
           }
         }
       }

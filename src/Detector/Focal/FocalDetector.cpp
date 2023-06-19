@@ -12,6 +12,7 @@
 #include "Detector/Common/DetectorSimulationStats.hpp"
 #include "Detector/Focal/Focal_creator.hpp"
 #include <misc/vcd_trace.hpp>
+#include <iostream>
 
 using namespace Focal;
 
@@ -26,6 +27,7 @@ SC_HAS_PROCESS(FocalDetector);
 ///                             be counted, to be used for data rate calculations
 FocalDetector::FocalDetector(sc_core::sc_module_name name,
                              const FocalDetectorConfig& config,
+                             const QSettings *settings,
                              unsigned int trigger_filter_time,
                              bool trigger_filter_enable,
                              unsigned int data_rate_interval_ns)
@@ -109,6 +111,7 @@ void FocalDetector::buildDetector(const FocalDetectorConfig& config,
     for(unsigned int sta_id = 0; sta_id < config.layer[lay_id].num_staves; sta_id++) {
       // Connect the busy in/out signals for the RUs in a daisy chain
       // ------------------------------------------------------------
+      std::cout << "Connecting busy links for Stave ID " << sta_id << std::endl;
       if(sta_id == num_staves-1) {
         // Connect busy input of first RU to busy output of last RU.
         // If only 1 stave/RU was specified, this will actually connect
@@ -135,14 +138,17 @@ void FocalDetector::buildDetector(const FocalDetectorConfig& config,
       RU.s_system_clk_in(s_system_clk_in);
       stave.s_system_clk_in(s_system_clk_in);
 
+      std::cout << "Connected system_clk_in on RU " << lay_id<< ":" << sta_id;
+      std::cout << std::endl;
+
       if(stave.numCtrlLinks() != RU.numCtrlLinks()) {
-        std::string error_msg = "Number of control links in stave and RU did not the same (";
+        std::string error_msg = "Number of control links in stave and RU are not the same (";
         error_msg += std::to_string(stave.numCtrlLinks()) + " vs. " + std::to_string(RU.numCtrlLinks()) + ")";
 
         throw std::runtime_error(error_msg);
       }
       if(stave.numDataLinks() != RU.numDataLinks()) {
-        std::string error_msg = "Number of data links in stave and RU did not the same (";
+        std::string error_msg = "Number of data links in stave and RU are not the same (";
         error_msg += std::to_string(stave.numDataLinks()) + " vs. " + std::to_string(RU.numDataLinks()) + ")";
 
         throw std::runtime_error(error_msg);
@@ -153,26 +159,51 @@ void FocalDetector::buildDetector(const FocalDetectorConfig& config,
         RU.s_alpide_control_output[link_num].bind(stave.socket_control_in[link_num]);
       }
 
+
+      std::cout << "Binded system_alpide_control on RU " << lay_id<< ":" << sta_id <<" for "<<stave.numCtrlLinks() << " CTRL links";
+      std::cout << std::endl;
+
       // Get a vector of pointer to the Alpide chips created by the new stave,
       // and add them to a map of chip id vs Alpide chip object.
       auto new_chips = stave.getChips();
 
-      for(unsigned int link_num = 0; link_num < stave.numDataLinks(); link_num++) {
-        stave.socket_data_out[link_num].bind(RU.s_alpide_data_input[link_num]);
+      if(lay_id < 2) {
 
-        if(lay_id < 3) {
-          // Inner Barrel
-          RU.s_serial_data_input[link_num](new_chips[link_num]->s_serial_data_out_exp);
-          RU.s_serial_data_trig_id[link_num](new_chips[link_num]->s_serial_data_trig_id_exp);
-        } else {
-          // Outer Barrel. Only master chips have data links to RU
-          if(new_chips.size() != stave.numDataLinks()*7) {
-            throw std::runtime_error("OB stave created with incorrect number of chips.");
-          }
+        std::cout << "Binding links on stave id " << sta_id << " for " << stave.numDataLinks() << " data links in stave"<< std::endl;;
 
-          RU.s_serial_data_input[link_num](new_chips[link_num*7]->s_serial_data_out_exp);
-          RU.s_serial_data_trig_id[link_num](new_chips[link_num*7]->s_serial_data_trig_id_exp);
+        if(stave.numDataLinks()!=RU.s_alpide_data_input.size()){
+          std::cout << "WARNING: Stave data output and RU data input have different size ("<<stave.numDataLinks()<<"!="<<RU.s_alpide_data_input.size()<<")"<<std::endl;
         }
+
+        for(unsigned int link_num = 0; link_num < stave.numDataLinks(); link_num++) {
+          std::cout <<"\tData out: link id "<<link_num <<std::endl;
+          stave.socket_data_out[link_num].bind(RU.s_alpide_data_input[link_num]);
+
+          // Inner Stave
+          if(sta_id%Focal::STAVES_PER_QUADRANT<Focal::INNER_STAVES_PER_QUADRANT){
+            
+            if(link_num<Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS){
+              std::cout <<"\tInner mode: link id "<<link_num <<std::endl;
+              RU.s_serial_data_input[link_num](new_chips[link_num]->s_serial_data_out_exp);
+              RU.s_serial_data_trig_id[link_num](new_chips[link_num]->s_serial_data_trig_id_exp);
+            } else if (link_num==Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS){
+              std::cout <<"\tOuter mode (3): link id "<<link_num <<std::endl;
+              RU.s_serial_data_input[link_num]  (new_chips[Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS]->s_serial_data_out_exp);
+              RU.s_serial_data_trig_id[link_num](new_chips[Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS]->s_serial_data_trig_id_exp);
+            } else if (link_num== (Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS + Focal_I3_I3_O3_O6::OUTERGROUPS_O3)){
+              std::cout <<"\tOuter mode (6): link id "<<link_num <<std::endl;
+              RU.s_serial_data_input[link_num]  (new_chips[Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS + Focal_I3_I3_O3_O6::OUTERGROUPS_O3*Focal_Outer3::CHIPS]->s_serial_data_out_exp);
+              RU.s_serial_data_trig_id[link_num](new_chips[Focal_I3_I3_O3_O6::INNERGROUPS*Focal_Inner3::CHIPS + Focal_I3_I3_O3_O6::OUTERGROUPS_O3*Focal_Outer3::CHIPS]->s_serial_data_trig_id_exp);
+            }
+          } else {
+              std::cout <<"\tOuter mode (3): link id "<<link_num <<std::endl;
+              RU.s_serial_data_input[link_num](   new_chips[Focal_Outer3::CHIPS*link_num]->s_serial_data_out_exp);
+              RU.s_serial_data_trig_id[link_num]( new_chips[Focal_Outer3::CHIPS*link_num]->s_serial_data_trig_id_exp);
+          }
+        } 
+      } else {
+        // Error? We should never get here for FoCal...
+        std::cout << "ERROR: accessing Focal layer " << lay_id << std::endl;
       }
 
       for(auto chip_it = new_chips.begin(); chip_it != new_chips.end(); chip_it++) {
@@ -189,6 +220,8 @@ void FocalDetector::buildDetector(const FocalDetectorConfig& config,
         mChipMap[chip_id] = *chip_it;
         mNumChips++;
       }
+
+      std::cout << "Created " << mChipMap.size() << " chips in layer " << lay_id  <<"."<< std::endl;
     }
   }
 }
@@ -261,10 +294,17 @@ void FocalDetector::triggerMethod(void)
   std::cout << "@ " << time_now << " ns: \tFocal Detector triggered!" << std::endl;
 
   for(unsigned int i = 0; i < N_LAYERS; i++) {
+     //std::cout << "\tPreparing for triggering " << mReadoutUnits[i].size() << " RUs in layer " << i << std::endl;
+  }
+
+  for(unsigned int i = 0; i < N_LAYERS; i++) {
     for(auto RU = mReadoutUnits[i].begin(); RU != mReadoutUnits[i].end(); RU++) {
+      //std::cout << "\t...triggered RU " << RU->basename() << " with " << RU->numDataLinks()  << " datalinks and "<<RU->numCtrlLinks() << " control links" << std::endl;
       RU->E_trigger_in.notify(SC_ZERO_TIME);
     }
   }
+
+  //std::cout << "Finished triggering FOCAL detector." << std::endl;
 }
 
 
@@ -303,9 +343,13 @@ void FocalDetector::writeSimulationStats(const std::string output_path) const
       std::stringstream ss;
       ss << output_path << "/RU_" << layer << "_" << stave;
 
-      mReadoutUnits[layer][stave].writeSimulationStats(ss.str());
+      mReadoutUnits[layer][stave].writeSimulationStats(ss.str(), false);
     }
   }
 
   ///@todo More ITS/RU stats here..
+}
+
+FocalDetector::~FocalDetector(){
+  std::cout << "FOCALDetector destructor called." << std::endl;
 }

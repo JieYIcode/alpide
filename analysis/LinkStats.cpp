@@ -15,7 +15,7 @@
 #include "TFile.h"
 #include "TDirectory.h"
 #include "TStyle.h"
-
+#include <string>
 
 void LinkStats::plotLink(void)
 {

@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <vector>
 #include <map>
+#include <string>
 
 struct BusyTime {
   uint64_t mStartTimeNs;
